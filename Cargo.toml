@@ -4,6 +4,6 @@ version = "0.1.0"
 edition = "2024"
 decriptions = "Rust SDK for building Model Context Protocol servers on Internet Computer"
 license = "MIT"
-authors = ["Kyle <lhkhiem@outlook.com>", "Long Tran <tranbaolong14@gmail.com>]
+authors = ["Kyle <lhkhiem@outlook.com>", "Long Tran <tranbaolong14@gmail.com>"]
 
 [dependencies]
