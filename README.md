@@ -1,0 +1,1 @@
+This SDK is intended for supporting MCP server development on [Internet Computer](https://internetcomputer.org) canisters. For other normal platforms, check out [official SDK](https://github.com/modelcontextprotocol/rust-sdk).
