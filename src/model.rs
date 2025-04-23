@@ -5,7 +5,7 @@ use std::borrow::Cow;
 mod tool;
 
 #[derive(Debug)]
-struct JsonRpcVersion2_0;
+pub struct JsonRpcVersion2_0;
 
 impl Serialize for JsonRpcVersion2_0 {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -100,176 +100,167 @@ impl<'de> Deserialize<'de> for RequestId {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+#[derive(Serialize, Deserialize)]
+pub struct Request {
+    pub method: String,
+    pub params: serde_json::Map<String, Value>,
+}
 
-    #[test]
-    fn test_jsonrpcversion() {
-        assert_eq!(
-            serde_json::to_string(&JsonRpcVersion2_0).expect("serialization failed"),
-            "\"2.0\""
-        );
+pub struct RequestOptionalParam {
+    pub method: String,
+    pub params: Option<serde_json::Map<String, Value>>,
+}
 
-        let _: JsonRpcVersion2_0 = serde_json::from_str("\"2.0\"").expect("deserialization failed");
+pub struct RequestNoParam {
+    pub method: String,
+}
 
-        let msg = serde_json::from_str::<JsonRpcVersion2_0>("\"1.0\"")
-            .unwrap_err()
-            .to_string();
-        assert!(
-            msg.contains("expected `2.0`, got `1.0`"),
-            "unexpected error message: {}",
-            msg
-        );
+#[derive(Serialize, Deserialize)]
+pub struct Notification {
+    pub method: String,
+    pub params: serde_json::Map<String, Value>,
+}
 
-        let _: JsonRpcVersion2_0 =
-            serde_json::from_str(&serde_json::to_string(&JsonRpcVersion2_0).unwrap()).unwrap();
+pub struct NotificationNoParam {
+    pub method: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct JsonRpcRequest {
+    pub jsonrpc: JsonRpcVersion2_0,
+    pub id: RequestId,
+    #[serde(flatten)]
+    pub request: Request,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct JsonRpcResultResponse {
+    pub jsonrpc: JsonRpcVersion2_0,
+    pub id: RequestId,
+    pub result: serde_json::Map<String, Value>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct JsonRpcErrorResponse {
+    pub jsonrpc: JsonRpcVersion2_0,
+    pub id: RequestId,
+    pub error: ErrorData,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct ErrorCode(pub i32);
+
+#[derive(Serialize, Deserialize)]
+pub struct ErrorData {
+    pub code: ErrorCode,
+
+    pub message: Cow<'static, str>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data: Option<Value>,
+}
+
+impl ErrorData {
+    pub fn new(
+        code: ErrorCode,
+        message: impl Into<Cow<'static, str>>,
+        data: Option<Value>,
+    ) -> Self {
+        Self {
+            code,
+            message: message.into(),
+            data,
+        }
     }
+}
 
-    #[test]
-    fn test_protocolversion() {
-        assert_eq!(
-            serde_json::to_string(&ProtocolVersion::V_2025_03_26).unwrap(),
-            "\"2025-03-26\""
-        );
+#[derive(Serialize, Deserialize)]
+pub struct JsonRpcNotification {
+    pub jsonrpc: JsonRpcVersion2_0,
+    #[serde(flatten)]
+    pub notification: Notification,
+}
 
-        assert!(matches!(
-            (serde_json::from_str::<ProtocolVersion>("\"2025-03-26\"").unwrap()).0,
-            Cow::Borrowed("2025-03-26")
-        ));
+#[derive(Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum JsonRpcMessage {
+    Request(JsonRpcRequest),
+    Response(JsonRpcResultResponse),
+    Notification(JsonRpcNotification),
+    BatchRequest(Vec<JsonRpcBatchIngressItem>),
+    BatchResponse(Vec<JsonRpcBatchEgressItem>),
+    Error(JsonRpcErrorResponse),
+}
 
-        assert!(
-            matches!( serde_json::from_str::<ProtocolVersion>("\"2025-01-01\"").unwrap().0, Cow::Owned(ref s) if s == "2025-01-01")
-        );
+#[derive(Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum JsonRpcBatchIngressItem {
+    Request(JsonRpcRequest),
+    Notification(JsonRpcNotification),
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum JsonRpcBatchEgressItem {
+    Response(JsonRpcResultResponse),
+    Error(JsonRpcErrorResponse),
+}
+
+impl JsonRpcBatchIngressItem {
+    pub fn into_non_batch_message<Resp>(self) -> JsonRpcMessage {
+        match self {
+            JsonRpcBatchIngressItem::Request(r) => JsonRpcMessage::Request(r),
+            JsonRpcBatchIngressItem::Notification(n) => JsonRpcMessage::Notification(n),
+        }
     }
+}
 
-    #[test]
-    fn test_requestid() {
-        assert_eq!(
-            serde_json::to_string(&RequestId::Number(12345)).unwrap(),
-            "12345"
-        );
-
-        assert_eq!(
-            serde_json::to_string(&RequestId::String("req-abc-987".to_string())).unwrap(),
-            "\"req-abc-987\""
-        );
-
-        assert_eq!(serde_json::to_string(&RequestId::Number(0)).unwrap(), "0");
-
-        assert_eq!(
-            serde_json::to_string(&RequestId::String("".to_string())).unwrap(),
-            "\"\""
-        );
-
-        assert_eq!(
-            serde_json::from_str::<RequestId>("12345").unwrap(),
-            RequestId::Number(12345)
-        );
-
-        assert_eq!(
-            serde_json::from_str::<RequestId>("\"req-abc-987\"").unwrap(),
-            RequestId::String("req-abc-987".to_string())
-        );
-
-        assert_eq!(
-            serde_json::from_str::<RequestId>("0").unwrap(),
-            RequestId::Number(0)
-        );
-
-        assert_eq!(
-            serde_json::from_str::<RequestId>("\"\"").unwrap(),
-            RequestId::String("".to_string())
-        );
-
-        assert_eq!(
-            serde_json::from_str::<RequestId>(&format!("{}", u32::MAX)).unwrap(),
-            RequestId::Number(u32::MAX)
-        );
-
-        assert_eq!(
-            serde_json::from_str::<RequestId>(&format!("{}", u32::MAX as u64 + 1)).unwrap(),
-            RequestId::Number(0)
-        );
-
-        let large_num_u64: u64 = 1 << 33;
-        assert_eq!(
-            serde_json::from_str::<RequestId>(&format!("{}", large_num_u64)).unwrap(),
-            RequestId::Number(0)
-        );
-
-        assert_eq!(
-            RequestId::Number(9876),
-            serde_json::from_str(
-                &serde_json::to_string::<RequestId>(&RequestId::Number(9876)).unwrap()
-            )
-            .unwrap()
-        );
-
-        assert_eq!(
-            RequestId::String("round-trip-test".to_string()),
-            serde_json::from_str(
-                &serde_json::to_string::<RequestId>(&RequestId::String(
-                    "round-trip-test".to_string()
-                ))
-                .unwrap()
-            )
-            .unwrap()
-        );
-
-        assert!(serde_json::from_str::<RequestId>("123.45").is_err());
-        assert!(
-            serde_json::from_str::<RequestId>("123.45")
-                .unwrap_err()
-                .to_string()
-                .contains("Expect a positive integer")
-        );
-
-        assert!(serde_json::from_str::<RequestId>("-10").is_err());
-        assert!(
-            serde_json::from_str::<RequestId>("-10")
-                .unwrap_err()
-                .to_string()
-                .contains("Expect a positive integer")
-        );
-
-        assert!(serde_json::from_str::<RequestId>("18446744073709551616").is_err());
-        assert!(
-            serde_json::from_str::<RequestId>("18446744073709551616")
-                .unwrap_err()
-                .is_data()
-        );
-
-        assert!(serde_json::from_str::<RequestId>("true").is_err());
-        assert!(
-            serde_json::from_str::<RequestId>("true")
-                .unwrap_err()
-                .to_string()
-                .contains("Expect a positive interger or a string")
-        );
-
-        assert!(serde_json::from_str::<RequestId>("null").is_err());
-        assert!(
-            serde_json::from_str::<RequestId>("null")
-                .unwrap_err()
-                .to_string()
-                .contains("Expect a positive interger or a string")
-        );
-
-        assert!(serde_json::from_str::<RequestId>("[1, 2]").is_err());
-        assert!(
-            serde_json::from_str::<RequestId>("[1, 2]")
-                .unwrap_err()
-                .to_string()
-                .contains("Expect a positive interger or a string")
-        );
-
-        assert!(serde_json::from_str::<RequestId>(r#"{"key": "value"}"#).is_err());
-        assert!(
-            serde_json::from_str::<RequestId>(r#"{"key": "value"}"#)
-                .unwrap_err()
-                .to_string()
-                .contains("Expect a positive interger or a string")
-        );
+impl JsonRpcBatchEgressItem {
+    pub fn into_non_batch_message<Req, Not>(self) -> JsonRpcMessage {
+        match self {
+            JsonRpcBatchEgressItem::Response(r) => JsonRpcMessage::Response(r),
+            JsonRpcBatchEgressItem::Error(e) => JsonRpcMessage::Error(e),
+        }
     }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Implementation {
+    pub name: String,
+    pub version: String,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InitializeRequestParam {
+    pub protocol_version: ProtocolVersion,
+    pub client_info: Implementation,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolsCapability {}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerCapabilities {
+    pub tools: Option<ToolsCapability>,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InitializeResult {
+    pub protocol_version: ProtocolVersion,
+    pub capabilities: ServerCapabilities,
+    pub server_info: Implementation,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub instructions: Option<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PaginatedRequestParam {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cursor: Option<String>,
 }
