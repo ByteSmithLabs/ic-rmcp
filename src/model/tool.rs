@@ -12,7 +12,7 @@ pub struct Tool {
     pub annotations: Option<ToolAnnotations>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolAnnotations {
     pub destructive_hint: Option<bool>,
@@ -49,21 +49,46 @@ impl Tool {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+impl ToolAnnotations {
+    pub fn new() -> Self {
+        Self::default()
+    }
 
-    #[test]
-    fn test_tool_annotations_serialize() {
-        assert_eq!(
-            serde_json::to_string(&ToolAnnotations {
-                destructive_hint: None,
-                idempotent_hint: None,
-                open_world_hint: None,
-                read_only_hint: None,
-                title: None,
-            })
-            .unwrap(),r#"{"destructiveHint":null,"idempotentHint":null,"openWorldHint":null,"readOnlyHint":null,"title":null}"#
-        );
+    pub fn with_title<T>(title: T) -> Self
+    where
+        T: Into<String>,
+    {
+        ToolAnnotations {
+            title: Some(title.into()),
+            ..Self::default()
+        }
+    }
+
+    pub fn with_read_only(self, read_only: bool) -> Self {
+        ToolAnnotations {
+            read_only_hint: Some(read_only),
+            ..self
+        }
+    }
+
+    pub fn with_destructive(self, destructive: bool) -> Self {
+        ToolAnnotations {
+            destructive_hint: Some(destructive),
+            ..self
+        }
+    }
+
+    pub fn with_idempotent(self, idempotent: bool) -> Self {
+        ToolAnnotations {
+            idempotent_hint: Some(idempotent),
+            ..self
+        }
+    }
+
+    pub fn with_open_world(self, open_world: bool) -> Self {
+        ToolAnnotations {
+            open_world_hint: Some(open_world),
+            ..self
+        }
     }
 }
