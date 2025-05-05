@@ -13,3 +13,4 @@ chrono = { version = "0.4.38", features = ["serde"] }
 base64 = { version = "0.21" }
 paste = { version = "1" }
 schemars = { version = "0.8"}
+ic-http-certification = "3.0.3"

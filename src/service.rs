@@ -1,6 +1,6 @@
 use crate::Error;
-use crate::model::{ClientNotification, ClientRequest, ServerInfo, ServerResult};
-
+use crate::model::{ClientNotification, ClientRequest, ServerResult};
+use ic_http_certification::{HttpRequest, HttpResponse};
 pub trait Service {
     fn handle_request(
         &self,
@@ -10,5 +10,9 @@ pub trait Service {
         &self,
         notification: ClientNotification,
     ) -> impl Future<Output = Result<(), Error>>;
-    fn get_info(&self) -> ServerInfo;
+}
+
+pub trait ServiceExt: Service {
+    fn handle(&self, req: HttpRequest
+    ) -> impl Future<Output = HttpResponse>;
 }

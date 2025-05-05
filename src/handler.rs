@@ -58,13 +58,9 @@ impl<H: ServerHandler> Service for H {
             ClientNotification::InitializedNotification(_notification) => {
                 self.on_initialized().await
             }
-            _ => ()
+            _ => (),
         };
         Ok(())
-    }
-
-    fn get_info(&self) -> ServerInfo {
-        self.get_info()
     }
 }
 
