@@ -1,3 +1,5 @@
+mod memory;
+
 pub trait SessionManager {
     fn create_session(&mut self) -> String;
     fn delete_session(&mut self, session_id: &str);

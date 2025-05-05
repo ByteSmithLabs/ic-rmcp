@@ -14,3 +14,7 @@ base64 = { version = "0.21" }
 paste = { version = "1" }
 schemars = { version = "0.8"}
 ic-http-certification = "3.0.3"
+ic-cdk-macros = "0.18.0"
+candid = "0.10.13"
+rand = "0.9.1"
+hex = "0.4.3"
