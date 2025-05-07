@@ -19,6 +19,7 @@ pub struct Tool {
     /// A JSON Schema object defining the expected parameters for the tool
     pub input_schema: Arc<JsonObject>,
     /// Optional additional tool information.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub annotations: Option<ToolAnnotations>,
 }
 
