@@ -6,7 +6,7 @@ use std::cmp::Ordering;
 
 pub type RxJsonRpcMessage = JsonRpcMessage<ClientRequest, ClientResult, ClientNotification>;
 
-impl<H: Handler> Server for H {
+impl<S: Service> Server for S {
     async fn handle(&self, req: HttpRequest<'_>) -> HttpResponse {
         if req.method() != "POST" || req.url() != "/mcp" {
             return HttpResponse::builder()
@@ -17,54 +17,31 @@ impl<H: Handler> Server for H {
 
         match from_slice::<RxJsonRpcMessage>(req.body()) {
             Ok(message) => match message {
-                JsonRpcMessage::Request(JsonRpcRequest { id, request, .. }) => {
-                    let result = match request {
-                        ClientRequest::InitializeRequest(request) => self
-                            .initialize(request.params)
-                            .await
-                            .map(ServerResult::InitializeResult),
-                        ClientRequest::PingRequest(_request) => {
-                            self.ping().await.map(ServerResult::empty)
-                        }
-                        ClientRequest::CallToolRequest(request) => self
-                            .call_tool(request.params)
-                            .await
-                            .map(ServerResult::CallToolResult),
-                        ClientRequest::ListToolsRequest(request) => self
-                            .list_tools(request.params)
-                            .await
-                            .map(ServerResult::ListToolsResult),
-                        _ => Err(Error::new(
-                            ErrorCode::METHOD_NOT_FOUND,
-                            "Method not found",
-                            None,
-                        )),
-                    };
-
-                    match result {
-                        Ok(result) => {
-                            let data: JsonRpcMessage<Request, ServerResult, Notification> =
-                                JsonRpcMessage::response(result, id);
-                            return response(data);
-                        }
-                        Err(error) => {
-                            let data: JsonRpcMessage<Request, ServerResult, Notification> =
-                                JsonRpcMessage::error(error, id);
-                            return response(data);
-                        }
-                    }
+                JsonRpcMessage::Request(request) => {
+                    return response(self.handle_request(request).await);
                 }
-                JsonRpcMessage::Notification(JsonRpcNotification { notification, .. }) => {
-                    match notification {
-                        ClientNotification::InitializedNotification(_notification) => {
-                            self.on_initialized().await
-                        }
-                        _ => (),
-                    };
+                JsonRpcMessage::Notification(notification) => {
+                    self.handle_notification(notification).await;
                     return HttpResponse::builder()
                         .with_status_code(StatusCode::from_u16(202).unwrap())
                         .build();
                 }
+                JsonRpcMessage::BatchRequest(batch) => {
+                    let mut results = Vec::new();
+                    for message in batch {
+                        match message {
+                            JsonRpcBatchRequestItem::Request(r) => {
+                                results.push(self.handle_request(r).await)
+                            }
+                            JsonRpcBatchRequestItem::Notification(n) => {
+                                self.handle_notification(n).await
+                            }
+                        }
+                    }
+
+                    return response(results);
+                }
+
                 _ => {
                     return HttpResponse::builder()
                 .with_status_code(StatusCode::from_u16(200).unwrap())
@@ -84,20 +61,74 @@ impl<H: Handler> Server for H {
     }
 }
 
+trait Service {
+    async fn handle_request(
+        &self,
+        request: JsonRpcRequest<ClientRequest>,
+    ) -> JsonRpcMessage<Request, ServerResult, Notification>;
+    async fn handle_notification(
+        &self,
+        notification: JsonRpcNotification<ClientNotification>,
+    ) -> ();
+}
+
+impl<H: Handler> Service for H {
+    async fn handle_request(
+        &self,
+        request: JsonRpcRequest<ClientRequest>,
+    ) -> JsonRpcMessage<Request, ServerResult, Notification> {
+        let result = match request.request {
+            ClientRequest::InitializeRequest(request) => self
+                .initialize(request.params)
+                .await
+                .map(ServerResult::InitializeResult),
+            ClientRequest::PingRequest(_request) => self.ping().await.map(ServerResult::empty),
+            ClientRequest::CallToolRequest(request) => self
+                .call_tool(request.params)
+                .await
+                .map(ServerResult::CallToolResult),
+            ClientRequest::ListToolsRequest(request) => self
+                .list_tools(request.params)
+                .await
+                .map(ServerResult::ListToolsResult),
+            _ => Err(Error::new(
+                ErrorCode::METHOD_NOT_FOUND,
+                "Method not found",
+                None,
+            )),
+        };
+
+        match result {
+            Ok(result) => JsonRpcMessage::response(result, request.id),
+            Err(error) => JsonRpcMessage::error(error, request.id),
+        }
+    }
+    async fn handle_notification(
+        &self,
+        notification: JsonRpcNotification<ClientNotification>,
+    ) -> () {
+        match notification.notification {
+            ClientNotification::InitializedNotification(_notification) => {
+                self.on_initialized().await
+            }
+            _ => (),
+        }
+    }
+}
+
 fn response<T: Serialize>(data: T) -> HttpResponse<'static> {
+    let builder = HttpResponse::builder()
+        .with_status_code(StatusCode::from_u16(200).unwrap())
+        .with_headers(vec![(
+            "Content-Type".to_string(),
+            "application/json".to_string(),
+        )]);
     match serde_json::to_string(&data) {
-        Ok(body) => HttpResponse::builder()
-            .with_status_code(StatusCode::from_u16(200).unwrap())
-            .with_headers(vec![(
-                "Content-Type".to_string(),
-                "application/json".to_string(),
-            )])
-            .with_body(body.into_bytes())
-            .build(),
-        Err(_) => HttpResponse::builder()
-            .with_status_code(StatusCode::from_u16(200).unwrap())
-            .with_headers(vec![("Content-Type".to_string(), "text/plain".to_string())])
-            .with_body(br#"{"jsonrpc": "2.0", "error": {"code": -32603, "message": "Internal error"}}"#)
+        Ok(body) => builder.with_body(body.into_bytes()).build(),
+        Err(_) => builder
+            .with_body(
+                br#"{"jsonrpc": "2.0", "error": {"code": -32603, "message": "Internal error"}}"#,
+            )
             .build(),
     }
 }

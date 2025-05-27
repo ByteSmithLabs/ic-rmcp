@@ -39,7 +39,7 @@ mod tests {
                     .with_method(Method::POST)
                     .with_url("/mcp")
                     .with_body(
-                        br#"{
+                        br#"[{
   "jsonrpc": "2.0",
   "id": 4,
   "method": "initialize",
@@ -51,14 +51,18 @@ mod tests {
       "version": "1.0.0"
     }
   }
-}"#,
+},
+{
+  "jsonrpc": "2.0",
+  "method": "notifications/initialized"
+}]"#,
                     )
                     .build(),
             ),
         );
 
         assert_eq!(
-            json!({"jsonrpc":"2.0","id":4,"result":{"protocolVersion":"2025-03-26","capabilities":{},"serverInfo":{"name":"Adder MCP","version":"1.0.0"}}}),
+            json!([{"jsonrpc":"2.0","id":4,"result":{"protocolVersion":"2025-03-26","capabilities":{},"serverInfo":{"name":"Adder MCP","version":"1.0.0"}}}]),
             from_slice::<Value>(result.body()).unwrap()
         );
     }
