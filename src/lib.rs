@@ -3,13 +3,13 @@ pub use error::Error;
 
 pub mod handler;
 pub mod model;
-pub mod service;
+pub mod server;
 
 #[cfg(test)]
 mod tests {
-    use crate::service::ServiceExt;
+    use crate::server::Server;
 
-    use super::handler::ServerHandler;
+    use super::handler::Handler;
     use super::model::*;
     use futures::executor::block_on;
     use ic_http_certification::{HttpRequest, Method};
@@ -17,7 +17,7 @@ mod tests {
 
     struct Adder;
 
-    impl ServerHandler for Adder {
+    impl Handler for Adder {
         fn get_info(&self) -> ServerInfo {
             ServerInfo {
                 protocol_version: ProtocolVersion::default(),
