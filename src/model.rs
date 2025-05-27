@@ -112,6 +112,12 @@ impl Serialize for ProtocolVersion {
     }
 }
 
+impl std::fmt::Display for ProtocolVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
 impl<'de> Deserialize<'de> for ProtocolVersion {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where

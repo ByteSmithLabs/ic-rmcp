@@ -1,4 +1,5 @@
 use crate::{error::Error, model::*, service::Service};
+use std::cmp::Ordering;
 
 impl<H: ServerHandler> Service for H {
     async fn handle_request(&self, request: ClientRequest) -> Result<ServerResult, Error> {
@@ -69,12 +70,29 @@ pub trait ServerHandler {
     fn ping(&self) -> impl Future<Output = Result<(), Error>> {
         std::future::ready(Ok(()))
     }
-    // handle requests
     fn initialize(
         &self,
         request: InitializeRequestParam,
     ) -> impl Future<Output = Result<InitializeResult, Error>> {
-        std::future::ready(Ok(self.get_info()))
+        let mut info = self.get_info();
+        let request_version = request.protocol_version.clone();
+
+        let negotiated_protocol_version =
+            match request_version.partial_cmp(&info.protocol_version) {
+                Some(Ordering::Less) => request.protocol_version.clone(),
+                Some(Ordering::Equal) => {
+                   request.protocol_version.clone()
+                }
+                Some(Ordering::Greater) => {
+                    info.protocol_version
+                },
+                None => {
+                    return std::future::ready(Err(Error::internal_error("UnsupportedProtocolVersion", None)));
+                }
+            };
+
+        info.protocol_version = negotiated_protocol_version;
+        std::future::ready(Ok(info))
     }
     fn complete(
         &self,

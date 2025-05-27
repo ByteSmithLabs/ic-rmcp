@@ -1,6 +1,15 @@
 use crate::Error;
-use crate::model::{ClientNotification, ClientRequest, ServerResult};
+use crate::model::{JsonRpcMessage, ClientNotification, ClientRequest, ClientResult, ServerResult};
 use ic_http_certification::{HttpRequest, HttpResponse};
+
+mod server;
+
+pub type RxJsonRpcMessage = JsonRpcMessage<
+    ClientRequest,
+    ClientResult,
+    ClientNotification,
+>;
+
 pub trait Service {
     fn handle_request(
         &self,
