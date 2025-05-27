@@ -11,8 +11,9 @@ mod tests {
 
     use super::handler::ServerHandler;
     use super::model::*;
-    use ic_http_certification::{HttpRequest,Method};
     use futures::executor::block_on;
+    use ic_http_certification::{HttpRequest, Method};
+    use serde_json::{from_slice, json, Value};
 
     struct Adder;
 
@@ -32,31 +33,33 @@ mod tests {
 
     #[test]
     fn test_adder_mcp() {
-        let result = block_on(Adder{}.handle(
-            HttpRequest::builder()
-                .with_method(Method::POST)
-                .with_url("/mcp")
-                .with_body(br#"{
+        let result = block_on(
+            Adder {}.handle(
+                HttpRequest::builder()
+                    .with_method(Method::POST)
+                    .with_url("/mcp")
+                    .with_body(
+                        br#"{
   "jsonrpc": "2.0",
   "id": 4,
   "method": "initialize",
   "params": {
-    "protocolVersion": "2025-03-24",
-    "capabilities": {
-      "roots": {
-        "listChanged": true
-      },
-      "sampling": {}
-    },
+    "protocolVersion": "2025-03-26",
+    "capabilities": {},
     "clientInfo": {
       "name": "ExampleClient",
       "version": "1.0.0"
     }
   }
-}"#)
-                .build(),
-        ));
+}"#,
+                    )
+                    .build(),
+            ),
+        );
 
-        println!("{}",String::from_utf8_lossy(result.body()))
+        assert_eq!(
+            json!({"jsonrpc":"2.0","id":4,"result":{"protocolVersion":"2025-03-26","capabilities":{},"serverInfo":{"name":"Adder MCP","version":"1.0.0"}}}),
+            from_slice::<Value>(result.body()).unwrap()
+        );
     }
 }
