@@ -1,7 +1,7 @@
 use crate::{error::Error, model::*, server::Server};
 use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
-use serde_json::from_slice;
 use serde::Serialize;
+use serde_json::from_slice;
 use std::cmp::Ordering;
 
 pub type RxJsonRpcMessage = JsonRpcMessage<ClientRequest, ClientResult, ClientNotification>;
@@ -67,7 +67,7 @@ impl<H: Handler> Server for H {
                 }
                 _ => {
                     return HttpResponse::builder()
-                .with_status_code(StatusCode::from_u16(400).unwrap())
+                .with_status_code(StatusCode::from_u16(200).unwrap())
                 .with_headers(vec![("Content-Type".to_string(), "application/json".to_string())])
                 .with_body(br#"{"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"}}"#)
                 .build();
@@ -75,12 +75,30 @@ impl<H: Handler> Server for H {
             },
             Err(_) => {
                 return HttpResponse::builder()
-                .with_status_code(StatusCode::from_u16(400).unwrap())
+                .with_status_code(StatusCode::from_u16(200).unwrap())
                 .with_headers(vec![("Content-Type".to_string(), "application/json".to_string())])
-                .with_body(br#"{"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"}}"#)
+                .with_body(br#"{"jsonrpc": "2.0", "error": {"code": -32700, "message": "Parse error"}}"#)
                 .build();
             }
         }
+    }
+}
+
+fn response<T: Serialize>(data: T) -> HttpResponse<'static> {
+    match serde_json::to_string(&data) {
+        Ok(body) => HttpResponse::builder()
+            .with_status_code(StatusCode::from_u16(200).unwrap())
+            .with_headers(vec![(
+                "Content-Type".to_string(),
+                "application/json".to_string(),
+            )])
+            .with_body(body.into_bytes())
+            .build(),
+        Err(_) => HttpResponse::builder()
+            .with_status_code(StatusCode::from_u16(200).unwrap())
+            .with_headers(vec![("Content-Type".to_string(), "text/plain".to_string())])
+            .with_body(br#"{"jsonrpc": "2.0", "error": {"code": -32603, "message": "Internal error"}}"#)
+            .build(),
     }
 }
 
@@ -129,23 +147,5 @@ pub trait Handler {
     }
     fn get_info(&self) -> ServerInfo {
         ServerInfo::default()
-    }
-}
-
-fn response<T: Serialize>(data: T) -> HttpResponse<'static> {
-    match serde_json::to_string(&data) {
-        Ok(body) => HttpResponse::builder()
-            .with_status_code(StatusCode::from_u16(400).unwrap())
-            .with_headers(vec![(
-                "Content-Type".to_string(),
-                "application/json".to_string(),
-            )])
-            .with_body(body.into_bytes())
-            .build(),
-        Err(_) => HttpResponse::builder()
-            .with_status_code(StatusCode::from_u16(500).unwrap())
-            .with_headers(vec![("Content-Type".to_string(), "text/plain".to_string())])
-            .with_body("Internal Server Error".as_bytes())
-            .build(),
     }
 }
