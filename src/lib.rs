@@ -13,7 +13,7 @@ mod tests {
     use super::model::*;
     use futures::executor::block_on;
     use ic_http_certification::{HttpRequest, Method};
-    use serde_json::{from_slice, json, Value};
+    use serde_json::{Value, from_slice, json};
 
     struct Adder;
 
@@ -55,6 +55,11 @@ mod tests {
 {
   "jsonrpc": "2.0",
   "method": "notifications/initialized"
+},
+{
+  "jsonrpc": "2.0",
+  "id": "123",
+  "method": "ping"
 }]"#,
                     )
                     .build(),
@@ -62,7 +67,11 @@ mod tests {
         );
 
         assert_eq!(
-            json!([{"jsonrpc":"2.0","id":4,"result":{"protocolVersion":"2025-03-26","capabilities":{},"serverInfo":{"name":"Adder MCP","version":"1.0.0"}}}]),
+            json!([{"jsonrpc":"2.0","id":4,"result":{"protocolVersion":"2025-03-26","capabilities":{},"serverInfo":{"name":"Adder MCP","version":"1.0.0"}}},{
+              "jsonrpc": "2.0",
+              "id": "123",
+              "result": {}
+            }]),
             from_slice::<Value>(result.body()).unwrap()
         );
     }

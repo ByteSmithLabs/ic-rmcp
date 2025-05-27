@@ -4,7 +4,7 @@ use serde::Serialize;
 use serde_json::from_slice;
 use std::cmp::Ordering;
 
-pub type RxJsonRpcMessage = JsonRpcMessage<ClientRequest, ClientResult, ClientNotification>;
+type RxJsonRpcMessage = JsonRpcMessage<ClientRequest, ClientResult, ClientNotification>;
 
 impl<S: Service> Server for S {
     async fn handle(&self, req: HttpRequest<'_>) -> HttpResponse {
