@@ -1,9 +1,8 @@
 use crate::server::Server;
-use rmcp::{Error, model::*};
 use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
+use rmcp::{Error, model::*};
 use serde::Serialize;
 use serde_json::from_slice;
-use std::cmp::Ordering;
 
 type RxJsonRpcMessage = JsonRpcMessage<ClientRequest, ClientResult, ClientNotification>;
 
@@ -79,11 +78,18 @@ impl<H: Handler> Service for H {
         request: JsonRpcRequest<ClientRequest>,
     ) -> JsonRpcMessage<Request, ServerResult, Notification> {
         let result = match request.request {
-            ClientRequest::InitializeRequest(request) => self
-                .initialize(request.params)
-                .await
-                .map(ServerResult::InitializeResult),
-            ClientRequest::PingRequest(_request) => self.ping().await.map(ServerResult::empty),
+            ClientRequest::InitializeRequest(request) => {
+                let info = self.get_info();
+                match request
+                    .params
+                    .protocol_version
+                    .partial_cmp(&info.protocol_version)
+                {
+                    None => Err(Error::internal_error("UnsupportedProtocolVersion", None)),
+                    _ => Ok(ServerResult::InitializeResult(info)),
+                }
+            }
+            ClientRequest::PingRequest(_) => Ok(ServerResult::empty(())),
             ClientRequest::CallToolRequest(request) => self
                 .call_tool(request.params)
                 .await
@@ -109,9 +115,7 @@ impl<H: Handler> Service for H {
         notification: JsonRpcNotification<ClientNotification>,
     ) -> () {
         match notification.notification {
-            ClientNotification::InitializedNotification(_notification) => {
-                self.on_initialized().await
-            }
+            ClientNotification::InitializedNotification(_) => (),
             _ => (),
         }
     }
@@ -136,32 +140,6 @@ fn response<T: Serialize>(data: T) -> HttpResponse<'static> {
 
 #[allow(unused_variables)]
 pub trait Handler {
-    fn ping(&self) -> impl Future<Output = Result<(), Error>> {
-        std::future::ready(Ok(()))
-    }
-    fn initialize(
-        &self,
-        request: InitializeRequestParam,
-    ) -> impl Future<Output = Result<InitializeResult, Error>> {
-        let mut info = self.get_info();
-        let request_version = request.protocol_version.clone();
-
-        let negotiated_protocol_version = match request_version.partial_cmp(&info.protocol_version)
-        {
-            Some(Ordering::Less) => request.protocol_version.clone(),
-            Some(Ordering::Equal) => request.protocol_version.clone(),
-            Some(Ordering::Greater) => info.protocol_version,
-            None => {
-                return std::future::ready(Err(Error::internal_error(
-                    "UnsupportedProtocolVersion",
-                    None,
-                )));
-            }
-        };
-
-        info.protocol_version = negotiated_protocol_version;
-        std::future::ready(Ok(info))
-    }
     fn call_tool(
         &self,
         request: CallToolRequestParam,
@@ -173,9 +151,6 @@ pub trait Handler {
         request: Option<PaginatedRequestParam>,
     ) -> impl Future<Output = Result<ListToolsResult, Error>> {
         std::future::ready(Ok(ListToolsResult::default()))
-    }
-    fn on_initialized(&self) -> impl Future<Output = ()> {
-        std::future::ready(())
     }
     fn get_info(&self) -> ServerInfo {
         ServerInfo::default()
