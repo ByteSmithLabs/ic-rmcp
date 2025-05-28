@@ -1,4 +1,5 @@
-use crate::{error::Error, model::*, server::Server};
+use crate::server::Server;
+use rmcp::{Error, model::*};
 use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
 use serde::Serialize;
 use serde_json::from_slice;
@@ -46,7 +47,7 @@ impl<S: Service> Server for S {
                     return HttpResponse::builder()
                 .with_status_code(StatusCode::from_u16(200).unwrap())
                 .with_headers(vec![("Content-Type".to_string(), "application/json".to_string())])
-                .with_body(br#"{"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"}}"#)
+                .with_body(br#"{"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"}, "id": null}"#)
                 .build();
                 }
             },
@@ -54,14 +55,14 @@ impl<S: Service> Server for S {
                 return HttpResponse::builder()
                 .with_status_code(StatusCode::from_u16(200).unwrap())
                 .with_headers(vec![("Content-Type".to_string(), "application/json".to_string())])
-                .with_body(br#"{"jsonrpc": "2.0", "error": {"code": -32700, "message": "Parse error"}}"#)
+                .with_body(br#"{"jsonrpc": "2.0", "error": {"code": -32700, "message": "Parse error"},"id": null}"#)
                 .build();
             }
         }
     }
 }
 
-trait Service {
+trait Service: Handler {
     async fn handle_request(
         &self,
         request: JsonRpcRequest<ClientRequest>,

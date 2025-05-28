@@ -1,8 +1,4 @@
-mod error;
-pub use error::Error;
-
 pub mod handler;
-pub mod model;
 pub mod server;
 
 #[cfg(test)]
@@ -10,7 +6,7 @@ mod tests {
     use crate::server::Server;
 
     use super::handler::Handler;
-    use super::model::*;
+    use rmcp::model::*;
     use futures::executor::block_on;
     use ic_http_certification::{HttpRequest, Method};
     use serde_json::{Value, from_slice, json};
