@@ -63,7 +63,7 @@ impl<S: Service> Server for S {
     async fn handle_with_auth(
         &self,
         req: HttpRequest<'_>,
-        auth: &impl Fn(&[HeaderField]) -> bool,
+        auth: impl Fn(&[HeaderField]) -> bool,
     ) -> HttpResponse {
         match auth(req.headers()) {
             true => {
