@@ -1,6 +1,7 @@
 This SDK is intended for supporting MCP server development on [Internet Computer](https://internetcomputer.org) canisters. For normal platforms, check out [official SDK](https://github.com/modelcontextprotocol/rust-sdk).
 
 ## Usage
+### 1. Server
 ```
 use ic_cdk_macros::{query, update};
 use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
@@ -95,3 +96,5 @@ async fn http_request_update(req: HttpRequest<'_>) -> HttpResponse<'_> {
 ic_cdk::export_candid!();
 
 ```
+### 2. Client
+See [Use MCP servers in VS Code](https://code.visualstudio.com/docs/copilot/chat/mcp-servers).
