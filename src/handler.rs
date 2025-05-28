@@ -156,6 +156,3 @@ pub trait Handler {
         ServerInfo::default()
     }
 }
-
-// Test purpose
-impl Handler for () {}
