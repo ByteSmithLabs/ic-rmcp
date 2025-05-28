@@ -1,5 +1,8 @@
 pub mod handler;
+pub use handler::Handler;
+
 pub mod server;
+pub use server::Server;
 
 #[cfg(test)]
 mod tests {
