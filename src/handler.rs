@@ -1,5 +1,5 @@
 use crate::server::Server;
-use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
+use ic_http_certification::{HeaderField, HttpRequest, HttpResponse, StatusCode};
 use rmcp::{Error, model::*};
 use serde::Serialize;
 use serde_json::from_slice;
@@ -56,6 +56,24 @@ impl<S: Service> Server for S {
                 .with_headers(vec![("Content-Type".to_string(), "application/json".to_string())])
                 .with_body(br#"{"jsonrpc": "2.0", "error": {"code": -32700, "message": "Parse error"},"id": null}"#)
                 .build();
+            }
+        }
+    }
+
+    async fn handle_with_auth(
+        &self,
+        req: HttpRequest<'_>,
+        auth: &impl Fn(&[HeaderField]) -> bool,
+    ) -> HttpResponse {
+        match auth(req.headers()) {
+            true => {
+                self.handle(req).await
+            },
+            false => {
+                HttpResponse::builder()
+                .with_status_code(StatusCode::from_u16(401).unwrap())
+                .with_body(br#"Unauthorized"#)
+                .build()
             }
         }
     }
