@@ -179,10 +179,8 @@ checksum = "c469d952047f47f91b68d1cba3f10d63c11d73e4636f24f08daf0278abf01c4d"
 dependencies = [
  "android-tzdata",
  "iana-time-zone",
- "js-sys",
  "num-traits",
  "serde",
- "wasm-bindgen",
  "windows-link",
 ]
 
@@ -627,7 +625,7 @@ dependencies = [
 [[package]]
 name = "rmcp"
 version = "0.1.5"
-source = "git+https://github.com/modelcontextprotocol/rust-sdk?branch=main#915bc3fb37fe259fba1a853a9dd03566593f3310"
+source = "git+https://github.com/okoyfoeciov/rust-sdk?branch=main#0cdbed1539d83173678f620e0c036486a911a197"
 dependencies = [
  "base64",
  "chrono",
@@ -647,7 +645,7 @@ dependencies = [
 [[package]]
 name = "rmcp-macros"
 version = "0.1.5"
-source = "git+https://github.com/modelcontextprotocol/rust-sdk?branch=main#915bc3fb37fe259fba1a853a9dd03566593f3310"
+source = "git+https://github.com/okoyfoeciov/rust-sdk?branch=main#0cdbed1539d83173678f620e0c036486a911a197"
 dependencies = [
  "proc-macro2",
  "quote",
