@@ -1,0 +1,22 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main", "release" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install rustfmt
+      run: rustup component add rustfmt
+      
+    - name: Check format
+      run: cargo fmt --all -- --check
