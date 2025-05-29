@@ -3,6 +3,13 @@ This SDK is intended for supporting MCP server development on [Internet Computer
 ## Usage
 ### 1. Server
 ```
+// Cargo.toml
+rmcp = { git = "https://github.com/modelcontextprotocol/rust-sdk", branch = "main" }
+ic_rmcp = { git = "https://github.com/ByteSmithLabs/ic-rmcp" , branch = "release" }
+```
+
+```
+// lib.rs
 use ic_cdk_macros::{query, update};
 use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
 use ic_rmcp::{Handler, Server};

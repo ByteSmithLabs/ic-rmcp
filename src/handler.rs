@@ -1,8 +1,9 @@
 use crate::server::Server;
 use ic_http_certification::{HeaderField, HttpRequest, HttpResponse, StatusCode};
-use rmcp::{Error, model::*};
+use rmcp::{model::*, Error};
 use serde::Serialize;
 use serde_json::from_slice;
+use std::future::Future;
 
 type RxJsonRpcMessage = JsonRpcMessage<ClientRequest, ClientResult, ClientNotification>;
 
@@ -66,15 +67,11 @@ impl<S: Service> Server for S {
         auth: impl Fn(&[HeaderField]) -> bool,
     ) -> HttpResponse {
         match auth(req.headers()) {
-            true => {
-                self.handle(req).await
-            },
-            false => {
-                HttpResponse::builder()
+            true => self.handle(req).await,
+            false => HttpResponse::builder()
                 .with_status_code(StatusCode::from_u16(401).unwrap())
                 .with_body(br#"Unauthorized"#)
-                .build()
-            }
+                .build(),
         }
     }
 }

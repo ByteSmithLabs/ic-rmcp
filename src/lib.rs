@@ -9,10 +9,10 @@ mod tests {
     use crate::server::Server;
 
     use super::handler::Handler;
-    use rmcp::model::*;
     use futures::executor::block_on;
     use ic_http_certification::{HttpRequest, Method};
-    use serde_json::{Value, from_slice, json};
+    use rmcp::model::*;
+    use serde_json::{from_slice, json, Value};
 
     struct Adder;
 

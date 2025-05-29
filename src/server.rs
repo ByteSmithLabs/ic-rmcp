@@ -1,4 +1,5 @@
 use ic_http_certification::{HeaderField, HttpRequest, HttpResponse};
+use std::future::Future;
 
 pub trait Server {
     fn handle(&self, req: HttpRequest) -> impl Future<Output = HttpResponse>;
