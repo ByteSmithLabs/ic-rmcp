@@ -5,7 +5,7 @@ use rmcp::{handler::server::tool::schema_for_type, model::*, Error};
 use std::cell::RefCell;
 
 thread_local! {
-    static COUNTER : RefCell<i32> = RefCell::new(0);
+    static COUNTER : RefCell<i32> = const {RefCell::new(0)} ;
 }
 
 #[query]
