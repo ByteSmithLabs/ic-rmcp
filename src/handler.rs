@@ -19,13 +19,13 @@ impl<S: Service> Server for S {
         match from_slice::<RxJsonRpcMessage>(req.body()) {
             Ok(message) => match message {
                 JsonRpcMessage::Request(request) => {
-                    return response(self.handle_request(request).await);
+                    response(self.handle_request(request).await)
                 }
                 JsonRpcMessage::Notification(notification) => {
                     self.handle_notification(notification).await;
-                    return HttpResponse::builder()
+                     HttpResponse::builder()
                         .with_status_code(StatusCode::from_u16(202).unwrap())
-                        .build();
+                        .build()
                 }
                 JsonRpcMessage::BatchRequest(batch) => {
                     let mut results = Vec::new();
@@ -40,23 +40,23 @@ impl<S: Service> Server for S {
                         }
                     }
 
-                    return response(results);
+                    response(results)
                 }
 
                 _ => {
-                    return HttpResponse::builder()
+                    HttpResponse::builder()
                 .with_status_code(StatusCode::from_u16(200).unwrap())
                 .with_headers(vec![("Content-Type".to_string(), "application/json".to_string())])
                 .with_body(br#"{"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"}, "id": null}"#)
-                .build();
+                .build()
                 }
             },
             Err(_) => {
-                return HttpResponse::builder()
+                HttpResponse::builder()
                 .with_status_code(StatusCode::from_u16(200).unwrap())
                 .with_headers(vec![("Content-Type".to_string(), "application/json".to_string())])
                 .with_body(br#"{"jsonrpc": "2.0", "error": {"code": -32700, "message": "Parse error"},"id": null}"#)
-                .build();
+                .build()
             }
         }
     }
@@ -81,10 +81,7 @@ trait Service: Handler {
         &self,
         request: JsonRpcRequest<ClientRequest>,
     ) -> JsonRpcMessage<Request, ServerResult, Notification>;
-    async fn handle_notification(
-        &self,
-        notification: JsonRpcNotification<ClientNotification>,
-    ) -> ();
+    async fn handle_notification(&self, notification: JsonRpcNotification<ClientNotification>);
 }
 
 impl<H: Handler> Service for H {
@@ -125,14 +122,8 @@ impl<H: Handler> Service for H {
             Err(error) => JsonRpcMessage::error(error, request.id),
         }
     }
-    async fn handle_notification(
-        &self,
-        notification: JsonRpcNotification<ClientNotification>,
-    ) -> () {
-        match notification.notification {
-            ClientNotification::InitializedNotification(_) => (),
-            _ => (),
-        }
+    async fn handle_notification(&self, notification: JsonRpcNotification<ClientNotification>) {
+        if let ClientNotification::InitializedNotification(_) = notification.notification {}
     }
 }
 
