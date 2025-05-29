@@ -1,0 +1,1 @@
+After deployment on local network or playground, you can access it at: `https://<CANISTER_ID>.icp0.io/mcp`. Test API key is `123456`.
