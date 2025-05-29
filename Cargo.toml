@@ -1,5 +1,5 @@
 [package]
-name = "ic_rmcp"
+name = "ic-rmcp"
 version = "0.1.0"
 edition = "2021"
 description = "Rust SDK for building Model Context Protocol servers on Internet Computer canisters"

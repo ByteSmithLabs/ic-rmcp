@@ -14,24 +14,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    
-    - name: Install rustfmt
-      run: rustup component add rustfmt
+    - run: rustup component add rustfmt
+    - run: cargo fmt --all -- --check
       
-    - name: Check format
-      run: cargo fmt --all -- --check
-  
   clippy:
     name: clippy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
         with: 
           components: clippy
-
       - uses: Swatinem/rust-cache@v2
-
-      - run: cargo clippy --all --tests --all-features --no-deps -- -D warnings
+      - run: cargo clippy --all --tests --no-deps -- -D warnings
+  
+  docs:
+    name: docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo doc --no-deps -p ic-rmcp
