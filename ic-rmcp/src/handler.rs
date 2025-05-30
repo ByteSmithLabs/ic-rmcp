@@ -2,7 +2,7 @@ use crate::server::Server;
 use ic_http_certification::{HeaderField, HttpRequest, HttpResponse, StatusCode};
 use rmcp::{model::*, Error};
 use serde::Serialize;
-use serde_json::from_slice;
+use serde_json::{from_slice, from_value, json, to_value, Value};
 use std::future::Future;
 
 type RxJsonRpcMessage = JsonRpcMessage<ClientRequest, ClientResult, ClientNotification>;
@@ -16,49 +16,52 @@ impl<S: Service> Server for S {
                 .build();
         }
 
-        match from_slice::<RxJsonRpcMessage>(req.body()) {
-            Ok(message) => match message {
-                JsonRpcMessage::Request(request) => {
-                    response(self.handle_request(request).await)
-                }
-                JsonRpcMessage::Notification(notification) => {
-                    self.handle_notification(notification).await;
-                     HttpResponse::builder()
-                        .with_status_code(StatusCode::from_u16(202).unwrap())
-                        .build()
-                }
-                JsonRpcMessage::BatchRequest(batch) => {
+        match from_slice::<Value>(req.body()){
+            Ok(Value::Array(req)) => {
                     let mut results = Vec::new();
-                    for message in batch {
-                        match message {
-                            JsonRpcBatchRequestItem::Request(r) => {
-                                results.push(self.handle_request(r).await)
+                    for message in req {
+                        match from_value::<JsonRpcBatchRequestItem<ClientRequest, ClientNotification>>(message) {
+                            Ok(JsonRpcBatchRequestItem::Request(r)) => {
+                                results.push(to_value(self.handle_request(r).await).unwrap_or(json!({"jsonrpc": "2.0", "error": {"code": -32603, "message": "Internal error"}})))
                             }
-                            JsonRpcBatchRequestItem::Notification(n) => {
+                            Ok(JsonRpcBatchRequestItem::Notification(n)) => {
                                 self.handle_notification(n).await
+                            },
+                            Err(_) => {
+                                results.push(json!({"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"}, "id": null}))
                             }
-                        }
+                        };
                     }
 
                     response(results)
-                }
-
-                _ => {
-                    HttpResponse::builder()
-                .with_status_code(StatusCode::from_u16(200).unwrap())
-                .with_headers(vec![("Content-Type".to_string(), "application/json".to_string())])
-                .with_body(br#"{"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"}, "id": null}"#)
-                .build()
+            },
+            Ok(Value::Object(req)) => {
+                match from_value::<RxJsonRpcMessage>(Value::Object(req)) {
+                    Ok(JsonRpcMessage::Request(request)) => response(self.handle_request(request).await),
+                    Ok(JsonRpcMessage::Notification(notification)) => {
+                            self.handle_notification(notification).await;
+                            HttpResponse::builder()
+                                            .with_status_code(StatusCode::from_u16(202).unwrap())
+                                            .build()
+                        }
+                    _ => {
+                        HttpResponse::builder()
+                                .with_status_code(StatusCode::from_u16(200).unwrap())
+                                .with_headers(vec![("Content-Type".to_string(), "application/json".to_string())])
+                                .with_body(br#"{"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"}, "id": null}"#)
+                                .build()
+                        }
                 }
             },
-            Err(_) => {
-                HttpResponse::builder()
+            _ => {
+                 HttpResponse::builder()
                 .with_status_code(StatusCode::from_u16(200).unwrap())
                 .with_headers(vec![("Content-Type".to_string(), "application/json".to_string())])
                 .with_body(br#"{"jsonrpc": "2.0", "error": {"code": -32700, "message": "Parse error"},"id": null}"#)
                 .build()
-            }
-        }
+            },
+
+    }
     }
 
     async fn handle_with_auth(
