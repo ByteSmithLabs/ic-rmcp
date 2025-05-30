@@ -1,4 +1,5 @@
 use crate::server::Server;
+use ic_cdk::eprintln;
 use ic_http_certification::{HeaderField, HttpRequest, HttpResponse, StatusCode};
 use rmcp::{model::*, Error};
 use serde::Serialize;
@@ -27,7 +28,8 @@ impl<S: Service> Server for S {
                             Ok(JsonRpcBatchRequestItem::Notification(n)) => {
                                 self.handle_notification(n).await
                             },
-                            Err(_) => {
+                            Err(e) => {
+                                eprintln!("Parse JSON: {}", e);
                                 results.push(json!({"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"}, "id": null}))
                             }
                         };
@@ -139,14 +141,18 @@ fn response<T: Serialize>(data: T) -> HttpResponse<'static> {
         )]);
     match serde_json::to_string(&data) {
         Ok(body) => builder.with_body(body.into_bytes()).build(),
-        Err(_) => builder
+        Err(e) => {
+            eprintln!("Serialize response: {}", e);
+            builder
             .with_body(
                 br#"{"jsonrpc": "2.0", "error": {"code": -32603, "message": "Internal error"}}"#,
             )
-            .build(),
+            .build()
+        }
     }
 }
 
+/// A handler holds MCP message execution logic.
 #[allow(unused_variables)]
 pub trait Handler {
     fn call_tool(

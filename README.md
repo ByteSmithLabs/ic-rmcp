@@ -7,6 +7,13 @@ This SDK is intended for supporting MCP server development on [Internet Computer
 ic_rmcp = { git = "https://github.com/ByteSmithLabs/ic-rmcp", branch = "main" }
 ```
 ### 2. Server
-See [adder](examples/adder).
+See [adder](examples/adder/src/lib.rs).
 ### 3. Client
 See [Use MCP servers in VS Code](https://code.visualstudio.com/docs/copilot/chat/mcp-servers).
+
+## Features
+This SDK supports:
+-  `tools` capability. 
+- `ping` utility.
+- Batching message.
+
