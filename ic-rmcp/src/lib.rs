@@ -6,7 +6,7 @@
 //! use ic_rmcp::{Handler, Server};
 //! use rmcp::{handler::server::tool::schema_for_type, model::*, Error};
 //! use ic_cdk::api::time;
-//! 
+//!
 //! #[query]
 //! fn http_request(_: HttpRequest) -> HttpResponse {
 //!     HttpResponse::builder()
@@ -14,9 +14,9 @@
 //!         .with_upgrade(true)
 //!         .build()
 //! }
-//! 
+//!
 //! struct Clock;
-//! 
+//!
 //! impl Handler for Clock {
 //!     fn get_info(&self) -> ServerInfo {
 //!         ServerInfo {
@@ -28,7 +28,7 @@
 //!             ..Default::default()
 //!         }
 //!     }
-//! 
+//!
 //!     async fn list_tools(&self, _: Option<PaginatedRequestParam>) -> Result<ListToolsResult, Error> {
 //!         Ok(ListToolsResult {
 //!             next_cursor: None,
@@ -41,7 +41,7 @@
 //!             ],
 //!         })
 //!     }
-//! 
+//!
 //!     async fn call_tool(&self, requests: CallToolRequestParam) -> Result<CallToolResult, Error> {
 //!         match requests.name.as_ref() {
 //!             "get_time" => {
@@ -53,12 +53,12 @@
 //!         }
 //!     }
 //! }
-//! 
+//!
 //! #[update]
 //! async fn http_request_update(req: HttpRequest<'_>) -> HttpResponse<'_> {
 //!     Clock {}.handle(req).await
 //! }
-//! 
+//!
 //! ic_cdk::export_candid!();
 //! ```
 mod handler;
