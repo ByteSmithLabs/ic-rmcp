@@ -1,0 +1,17 @@
+{
+  "canisters": {
+    "adder": {
+      "candid": "adder.did",
+      "package": "adder",
+      "type": "rust"
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}

@@ -1,0 +1,3 @@
+[workspace]
+members = ["ic-rmcp", "examples/*"]
+resolver = "2"

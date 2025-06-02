@@ -1,0 +1,19 @@
+[package]
+name = "ic-rmcp"
+version = "0.1.0"
+edition = "2021"
+description = "Rust SDK for building Model Context Protocol servers on Internet Computer canisters"
+license = "MIT"
+authors = ["Kyle <lhkhiem@outlook.com>", "Long Tran <tranbaolong14@gmail.com>"]
+
+[dependencies]
+serde = { version = "1.0", features = ["derive", "rc"] }
+serde_json = "1.0"
+ic-http-certification = "3.0.3"
+rmcp = { git = "https://github.com/modelcontextprotocol/rust-sdk", branch = "main" }
+ic-cdk = "0.17"
+
+[dev-dependencies]
+futures = "0.3"
+schemars = { version = "0.8" }
+
