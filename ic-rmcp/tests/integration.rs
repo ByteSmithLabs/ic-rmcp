@@ -58,7 +58,7 @@ impl Handler for MagicSum {
 #[test]
 fn test_auth() {
     assert_eq!(
-        block_on(MagicSum {}.handle_with_auth(HttpRequest::builder().build(), |_| false)),
+        block_on(MagicSum {}.handle_with_auth(&HttpRequest::builder().build(), |_| false)),
         HttpResponse::builder()
             .with_status_code(StatusCode::from_u16(401).unwrap())
             .with_headers(vec![("Content-Type".to_string(), "text/plain".to_string())])
@@ -67,7 +67,7 @@ fn test_auth() {
     );
 
     assert_eq!(
-        block_on(MagicSum {}.handle_with_auth(HttpRequest::builder().build(), |_| true)),
+        block_on(MagicSum {}.handle_with_auth(&HttpRequest::builder().build(), |_| true)),
         HttpResponse::builder()
             .with_status_code(StatusCode::from_u16(404).unwrap())
             .with_headers(vec![("Content-Type".to_string(), "text/plain".to_string())])
@@ -81,7 +81,7 @@ fn test_initialization() {
     assert_eq!(
             block_on(
                 MagicSum {}.handle(
-                    HttpRequest::builder()
+                    &HttpRequest::builder()
                         .with_method(Method::POST)
                         .with_url("/mcp")
                         .with_body(
@@ -117,7 +117,7 @@ fn test_initialization() {
     assert_eq!(
         block_on(
             MagicSum {}.handle(
-                HttpRequest::builder()
+                &HttpRequest::builder()
                     .with_method(Method::POST)
                     .with_url("/mcp")
                     .with_body(
@@ -142,7 +142,7 @@ fn test_tools() {
     assert_eq!(
             block_on(
                 MagicSum {}.handle(
-                    HttpRequest::builder()
+                    &HttpRequest::builder()
                         .with_method(Method::POST)
                         .with_url("/mcp")
                         .with_body(
@@ -171,7 +171,7 @@ fn test_tools() {
     assert_eq!(
             block_on(
                 MagicSum {}.handle(
-                    HttpRequest::builder()
+                    &HttpRequest::builder()
                         .with_method(Method::POST)
                         .with_url("/mcp")
                         .with_body(
@@ -205,7 +205,7 @@ fn test_tools() {
     assert_eq!(
         block_on(
             MagicSum {}.handle(
-                HttpRequest::builder()
+                &HttpRequest::builder()
                     .with_method(Method::POST)
                     .with_url("/mcp")
                     .with_body(
@@ -242,7 +242,7 @@ fn test_unsupported_method() {
     assert_eq!(
         block_on(
             MagicSum {}.handle(
-                HttpRequest::builder()
+                &HttpRequest::builder()
                     .with_method(Method::POST)
                     .with_url("/mcp")
                     .with_body(
@@ -278,7 +278,7 @@ fn test_batch() {
         String::from_utf8_lossy(
             block_on(
                 MagicSum {}.handle(
-                    HttpRequest::builder()
+                    &HttpRequest::builder()
                         .with_method(Method::POST)
                         .with_url("/mcp")
                         .with_body(
@@ -305,7 +305,7 @@ fn test_batch() {
     assert_eq!(
         block_on(
             MagicSum {}.handle(
-                HttpRequest::builder()
+                &HttpRequest::builder()
                     .with_method(Method::POST)
                     .with_url("/mcp")
                     .with_body(

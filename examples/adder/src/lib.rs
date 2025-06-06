@@ -61,15 +61,17 @@ impl Handler for Adder {
 }
 
 #[update]
-async fn http_request_update(req: HttpRequest<'_>) -> HttpResponse<'_> {
-    Adder {}
-        .handle_with_auth(req, |headers| -> bool {
-            ic_cdk::println!("Headers: {:?}", headers);
+async fn http_request_update(req: HttpRequest<'static>) -> HttpResponse<'static> {
+    let mut server = ic_http::Server::new();
+    server.route("POST", "/mcp", |req| {
+        Box::pin(Adder {}.handle_with_auth(req, |headers| -> bool {
             headers
                 .iter()
                 .any(|(k, v)| k == "x-api-key" && v == "123456")
-        })
-        .await
+        }))
+    });
+
+    server.handle(&req).await
 }
 
 ic_cdk::export_candid!();
