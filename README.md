@@ -8,7 +8,7 @@ any client support Streamable HTTP transport. MCP Servers built by the SDK are s
 ic_rmcp = { git = "https://github.com/ByteSmithLabs/ic-rmcp", branch = "main" }
 ```
 ### 2. Server
-See [adder](examples/adder/src/lib.rs).
+See [examples](examples).
 ### 3. Example client
 See [Use MCP servers in VS Code](https://code.visualstudio.com/docs/copilot/chat/mcp-servers) for quickstart.
 
