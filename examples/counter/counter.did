@@ -13,5 +13,5 @@ type HttpResponse = record {
 };
 service : {
   http_request : (HttpRequest) -> (HttpResponse) query;
-  http_request_update : (HttpRequest) -> (HttpResponse) query;
+  http_request_update : (HttpRequest) -> (HttpResponse);
 }
