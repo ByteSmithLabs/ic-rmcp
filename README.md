@@ -5,7 +5,7 @@ any client support Streamable HTTP transport. MCP Servers built by the SDK are s
 ### 1. Cargo.toml
 ```toml
 [dependencies]
-ic_rmcp = { git = "https://github.com/ByteSmithLabs/ic-rmcp", branch = "main" }
+ic-rmcp = { git = "https://github.com/ByteSmithLabs/ic-rmcp", branch = "main" }
 ```
 ### 2. Server
 See [examples](examples).
