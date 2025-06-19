@@ -1,4 +1,4 @@
-use ic_cdk_macros::{query, update};
+use ic_cdk::{query, update};
 use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
 use ic_rmcp::{Handler, Server};
 use rmcp::{handler::server::tool::schema_for_type, model::*, Error};

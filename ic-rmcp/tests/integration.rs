@@ -164,7 +164,7 @@ fn test_tools() {
                     "Content-Type".to_string(),
                     "application/json".to_string()
                 )])
-                .with_body(br#"{"jsonrpc":"2.0","id":1,"result":{"tools":[{"name":"calculate_magic_sum","description":"Calculate a magic sum between two numbers","inputSchema":{"properties":{"a":{"format":"double","type":"number"},"b":{"format":"double","type":"number"}},"required":["a","b"],"title":"MagicSumRequest","type":"object"}}]}}"#)
+                .with_body(br#"{"jsonrpc":"2.0","id":1,"result":{"tools":[{"name":"calculate_magic_sum","description":"Calculate a magic sum between two numbers","inputSchema":{"$schema":"http://json-schema.org/draft-07/schema#","properties":{"a":{"format":"double","type":"number"},"b":{"format":"double","type":"number"}},"required":["a","b"],"title":"MagicSumRequest","type":"object"}}]}}"#)
                 .build()
         );
 
@@ -273,35 +273,6 @@ fn test_unsupported_method() {
 
 #[test]
 fn test_batch() {
-    println!(
-        "{}",
-        String::from_utf8_lossy(
-            block_on(
-                MagicSum {}.handle(
-                    &HttpRequest::builder()
-                        .with_method(Method::POST)
-                        .with_url("/mcp")
-                        .with_body(
-                            br#"[
-                            {
-                            "jsonrpc": "2.0",
-                            "id": 1,
-                            "method": "prompts/list",
-                            "params": {}
-                        } ,{
-                            "jsonrpc": "2.0",
-                            "id": "123",
-                            "method": "ping"
-                            }
-                        ]   
-                "#
-                        )
-                        .build()
-                )
-            )
-            .body()
-        )
-    );
     assert_eq!(
         block_on(
             MagicSum {}.handle(

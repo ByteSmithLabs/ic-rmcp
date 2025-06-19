@@ -1,7 +1,7 @@
 //! This SDK is intended for supporting MCP server development on [Internet Computer](https://internetcomputer.org) canisters. For normal platforms, check out [official SDK](https://github.com/modelcontextprotocol/rust-sdk).
 
 //! ```rust
-//! use ic_cdk_macros::{query, update};
+//! use ic_cdk::{query, update};
 //! use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
 //! use ic_rmcp::{Handler, Server};
 //! use rmcp::{handler::server::tool::schema_for_type, model::*, Error};
