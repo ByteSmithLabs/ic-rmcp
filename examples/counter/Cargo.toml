@@ -11,9 +11,8 @@ crate-type = ["cdylib"]
 
 [dependencies]
 candid = "0.10"
-ic-cdk = "0.17"
+ic-cdk = "0.18"
 ic-http-certification = "3.0.3"
-ic-cdk-macros = "0.13"
 
 rmcp = { git = "https://github.com/modelcontextprotocol/rust-sdk", branch = "main" }
 ic-rmcp = { path = "../../ic-rmcp" }
