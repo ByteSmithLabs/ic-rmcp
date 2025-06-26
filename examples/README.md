@@ -1,4 +1,4 @@
-## Deploy: 
+## Deployment: 
 ```bash
 dfx deploy <server_name> --argument '("YOUR_API_KEY")' --mode install
 ```
