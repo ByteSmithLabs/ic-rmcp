@@ -1,10 +1,20 @@
-use ic_cdk::{query, update};
+use ic_cdk::{init, query, update};
 use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
 use ic_rmcp::{Handler, Server};
 use rmcp::{handler::server::tool::schema_for_type, model::*, Error};
 use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::{from_value, Value};
+use std::cell::RefCell;
+
+thread_local! {
+    static API_KEY : RefCell<String> = const {RefCell::new(String::new())} ;
+}
+
+#[init]
+fn init(api_key: String) {
+    API_KEY.with_borrow_mut(|key| *key = api_key)
+}
 
 #[query]
 fn http_request(_: HttpRequest) -> HttpResponse {
@@ -67,7 +77,7 @@ async fn http_request_update(req: HttpRequest<'static>) -> HttpResponse<'static>
         Box::pin(Adder {}.handle_with_auth(req, |headers| -> bool {
             headers
                 .iter()
-                .any(|(k, v)| k == "x-api-key" && v == "123456")
+                .any(|(k, v)| k == "x-api-key" && *v == API_KEY.with_borrow(|k| k.clone()))
         }))
     });
 
