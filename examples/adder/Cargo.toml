@@ -19,4 +19,6 @@ ic-rmcp = { path = "../../ic-rmcp" }
 serde_json = "1"
 serde = { version = "1", features = ["derive"] }
 schemars = { version = "0.8" }
-ic-http = { git = "https://github.com/ByteSmithLabs/ic-http.git", branch = "main"}
+# this repo is not ready 
+# ic-pluto = {git = "https://github.com/Forge-3/pluto"}
+ic-pluto = { path = "../../../pluto/src/pluto" }

@@ -1,17 +1,16 @@
-type HttpRequest = record {
+type RawHttpRequest = record {
   url : text;
   method : text;
   body : blob;
   headers : vec record { text; text };
-  certificate_version : opt nat16;
 };
-type HttpResponse = record {
+type RawHttpResponse = record {
   body : blob;
   headers : vec record { text; text };
   upgrade : opt bool;
   status_code : nat16;
 };
 service : (text) -> {
-  http_request : (HttpRequest) -> (HttpResponse) query;
-  http_request_update : (HttpRequest) -> (HttpResponse);
+  http_request : (RawHttpRequest) -> (RawHttpResponse) query;
+  http_request_update : (RawHttpRequest) -> (RawHttpResponse);
 }
