@@ -21,4 +21,4 @@ serde = { version = "1", features = ["derive"] }
 schemars = { version = "0.8" }
 # this repo is not ready 
 # ic-pluto = {git = "https://github.com/Forge-3/pluto"}
-ic-pluto = { path = "../../../pluto/src/pluto" }
+ic-pluto = { git = "https://github.com/ByteSmithLabs/pluto" }
