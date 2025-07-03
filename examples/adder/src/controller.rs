@@ -45,7 +45,7 @@ fn convert_cert_to_pluto(response: ic_http_certification::HttpResponse) -> HttpR
         status_code: response.status_code().as_u16(),
         headers: response
             .headers()
-            .into_iter()
+            .iter()
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect(),
         body: HttpBody::Raw(response.body().to_vec()),
