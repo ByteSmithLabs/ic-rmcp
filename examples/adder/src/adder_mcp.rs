@@ -1,5 +1,4 @@
-use ic_rmcp::Handler;
-use rmcp::{handler::server::tool::schema_for_type, model::*, Error};
+use ic_rmcp::{model::*, schema_for_type, Error, Handler};
 use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::{from_value, Value};

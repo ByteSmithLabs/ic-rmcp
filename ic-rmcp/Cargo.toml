@@ -10,7 +10,7 @@ authors = ["Kyle <lhkhiem@outlook.com>", "Long Tran <tranbaolong14@gmail.com>"]
 serde = { version = "1.0", features = ["derive", "rc"] }
 serde_json = "1.0"
 ic-http-certification = "3.0.3"
-rmcp = { git = "https://github.com/modelcontextprotocol/rust-sdk", branch = "main" }
+rmcp = "0.2.1"
 ic-cdk = "0.18"
 
 [dev-dependencies]
