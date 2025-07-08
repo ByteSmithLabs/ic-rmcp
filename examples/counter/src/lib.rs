@@ -42,12 +42,12 @@ impl Handler for Counter {
             tools: vec![
                 Tool::new(
                     "increase",
-                    "Increment the counter by 1",
+                    "Increase the counter by 1",
                     schema_for_type::<EmptyObject>(),
                 ),
                 Tool::new(
                     "decrease",
-                    "Decrement the counter by 1",
+                    "Decrease the counter by 1",
                     schema_for_type::<EmptyObject>(),
                 ),
                 Tool::new(
