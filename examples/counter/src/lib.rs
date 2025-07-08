@@ -31,7 +31,7 @@ impl Handler for Counter {
                 name: "Counter".to_string(),
                 version: "1.0.0".to_string(),
             },
-            instructions: Some("This server provides a counter tool that can increment and decrement values. The counter starts at 0 and can be modified using the 'increment' and 'decrement' tools. Use 'get_value' to check the current count.".to_string()),
+            instructions: Some("This server provides a counter tool that can increase and decrease counter values. The counter starts at 0 and can be modified using the 'increase' and 'decrease' tools. Use 'get_value' to check the current counter.".to_string()),
             ..Default::default()
         }
     }
@@ -41,12 +41,12 @@ impl Handler for Counter {
             next_cursor: None,
             tools: vec![
                 Tool::new(
-                    "increment",
+                    "increase",
                     "Increment the counter by 1",
                     schema_for_type::<EmptyObject>(),
                 ),
                 Tool::new(
-                    "decrement",
+                    "decrease",
                     "Decrement the counter by 1",
                     schema_for_type::<EmptyObject>(),
                 ),
@@ -61,7 +61,7 @@ impl Handler for Counter {
 
     async fn call_tool(&self, requests: CallToolRequestParam) -> Result<CallToolResult, Error> {
         match requests.name.as_ref() {
-            "increment" => {
+            "increase" => {
                 COUNTER.with(|counter| {
                     let mut value = counter.borrow_mut();
                     *value += 1;
@@ -70,7 +70,7 @@ impl Handler for Counter {
                     Content::text("Counter incremented").into_contents(),
                 ))
             }
-            "decrement" => {
+            "decrease" => {
                 COUNTER.with(|counter| {
                     let mut value = counter.borrow_mut();
                     *value -= 1;
