@@ -6,6 +6,9 @@ use serde::Serialize;
 use serde_json::{from_slice, from_value, json, to_value, Value};
 use std::future::Future;
 
+pub mod oauth;
+use oauth::OAuthConfig;
+
 type RxJsonRpcMessage = JsonRpcMessage<ClientRequest, ClientResult, ClientNotification>;
 
 impl<S: Service> Server for S {
@@ -85,6 +88,45 @@ impl<S: Service> Server for S {
                 .with_body(br#"Unauthorized"#)
                 .build(),
         }
+    }
+
+    async fn handle_with_oauth(&self, req: &HttpRequest<'_>, cfg: OAuthConfig<'_>) -> HttpResponse {
+        if req.method() == "GET" && req.url() == "/.well-known/oauth-protected-resource" {
+            #[derive(Serialize)]
+            struct Metadata<'a> {
+                resource: &'a str,
+                authorization_servers: &'a [String],
+            }
+            return response(Metadata {
+                resource: "/mcp",
+                authorization_servers: cfg.metadata.authorization_servers,
+            });
+        }
+
+        let token = match req.headers()
+            .iter()
+            .find(|(key, _)| key.eq_ignore_ascii_case("Authorization"))
+            .and_then(|(_, value)| {
+                if value.starts_with("Bearer ") {
+                    Some(&value[7..])
+                } else {
+                    None
+                }
+            }) {
+            Some(token) => token,
+            None => {
+                return HttpResponse::builder()
+                    .with_status_code(StatusCode::from_u16(401).unwrap())
+                    .with_headers(vec![
+                        ("Content-Type".to_string(), "text/plain".to_string()),
+                        ("WWW-Authenticate".to_string(), "Bearer".to_string()),
+                    ])
+                    .with_body(br#"Unauthorized"#)
+                    .build()
+            }
+        };
+
+        self.handle(req).await
     }
 }
 
