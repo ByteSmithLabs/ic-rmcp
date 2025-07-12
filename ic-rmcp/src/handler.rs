@@ -156,7 +156,10 @@ impl<S: Service> Server for S {
                     .with_status_code(StatusCode::from_u16(401).unwrap())
                     .with_headers(vec![
                         ("Content-Type".to_string(), "text/plain".to_string()),
-                        ("WWW-Authenticate".to_string(), "Bearer".to_string()),
+                        (
+                            "WWW-Authenticate".to_string(),
+                            format!("Bearer resource_metadata=\"{}\"", cfg.metadata_url),
+                        ),
                     ])
                     .with_body(br#"Unauthorized"#)
                     .build();
