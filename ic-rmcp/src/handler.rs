@@ -151,7 +151,7 @@ impl<S: Service> Server for S {
             }
             Err(err) => {
                 // DEBUG: REFACTOR LATER
-                eprintln!("{}", err);
+                eprintln!("{:?}", err);
                 return HttpResponse::builder()
                     .with_status_code(StatusCode::from_u16(401).unwrap())
                     .with_headers(vec![
