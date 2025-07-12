@@ -1,7 +1,7 @@
 use ic_cdk::api::time;
 use ic_cdk::management_canister::{http_request, HttpMethod, HttpRequestArgs};
 use jsonwebtoken::jwk::JwkSet;
-use jsonwebtoken::{decode, decode_header, jwk, DecodingKey, TokenData, Validation};
+use jsonwebtoken::{decode, decode_header, DecodingKey, TokenData, Validation};
 use serde::{Deserialize, Serialize};
 use serde_json::from_slice;
 use std::cell::RefCell;
@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::error::Error;
 
 thread_local! {
-    pub static JWTSETs: RefCell<HashMap<String, JwkSet>> = RefCell::default();
+    pub static JWT_SETS: RefCell<HashMap<String, JwkSet>> = RefCell::default();
 }
 
 pub struct OAuthConfig<'a> {
@@ -33,7 +33,7 @@ pub struct IssuerConfig<'a> {
 }
 
 async fn fetch_jwks(jwks_url: &str) -> Result<JwkSet, Box<dyn Error>> {
-    if let Some(set) = JWTSETs.with_borrow(|jwt_sets| jwt_sets.get(jwks_url).map(|set| set.clone()))
+    if let Some(set) = JWT_SETS.with_borrow(|jwt_sets| jwt_sets.get(jwks_url).map(|set| set.clone()))
     {
         return Ok(set);
     }
@@ -50,7 +50,7 @@ async fn fetch_jwks(jwks_url: &str) -> Result<JwkSet, Box<dyn Error>> {
     .body;
 
     let set = from_slice::<JwkSet>(&body)?;
-    JWTSETs.with_borrow_mut(|jwt_sets| jwt_sets.insert(jwks_url.to_string(), set.clone()));
+    JWT_SETS.with_borrow_mut(|jwt_sets| jwt_sets.insert(jwks_url.to_string(), set.clone()));
     Ok(set)
 }
 
