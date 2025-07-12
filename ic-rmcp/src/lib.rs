@@ -1,5 +1,6 @@
 mod handler;
 pub use handler::Handler;
+pub use handler::oauth::{OAuthConfig, IssuerConfig};
 
 mod server;
 pub use server::Server;

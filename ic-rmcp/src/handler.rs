@@ -94,12 +94,10 @@ impl<S: Service> Server for S {
         if req.method() == "GET" && req.url() == "/.well-known/oauth-protected-resource" {
             #[derive(Serialize)]
             struct Metadata<'a> {
-                resource: &'a str,
                 authorization_servers: &'a [&'a str],
             }
 
             return response(Metadata {
-                resource: "/mcp",
                 authorization_servers: &cfg
                     .issuer_configs
                     .iter()
