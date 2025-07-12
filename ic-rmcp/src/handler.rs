@@ -95,15 +95,21 @@ impl<S: Service> Server for S {
             #[derive(Serialize)]
             struct Metadata<'a> {
                 resource: &'a str,
-                authorization_servers: &'a [String],
+                authorization_servers: &'a [&'a str],
             }
+
             return response(Metadata {
                 resource: "/mcp",
-                authorization_servers: cfg.metadata.authorization_servers,
+                authorization_servers: &cfg
+                    .issuer_configs
+                    .iter()
+                    .map(|cfg| cfg.authorization_server)
+                    .collect::<Vec<&str>>(),
             });
         }
 
-        let token = match req.headers()
+        let token = match req
+            .headers()
             .iter()
             .find(|(key, _)| key.eq_ignore_ascii_case("Authorization"))
             .and_then(|(_, value)| {
