@@ -13,6 +13,7 @@ ic-http-certification = "3.0.3"
 rmcp = "0.2.1"
 ic-cdk = "0.18"
 jsonwebtoken = { version = "9.3.1"}
+url = "2.4.0"
 
 [dev-dependencies]
 futures = "0.3"

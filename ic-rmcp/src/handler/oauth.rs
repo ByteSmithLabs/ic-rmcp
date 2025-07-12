@@ -13,6 +13,7 @@ thread_local! {
 }
 
 pub struct OAuthConfig<'a> {
+    pub metadata_url: &'a str, 
     pub issuer_configs: &'a [IssuerConfig<'a>],
 }
 

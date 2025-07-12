@@ -5,6 +5,7 @@ use ic_http_certification::{HeaderField, HttpRequest, HttpResponse, StatusCode};
 use serde::Serialize;
 use serde_json::{from_slice, from_value, json, to_value, Value};
 use std::future::Future;
+use url::Url;
 
 pub mod oauth;
 use oauth::{validate_token, OAuthConfig};
@@ -91,7 +92,19 @@ impl<S: Service> Server for S {
     }
 
     async fn handle_with_oauth(&self, req: &HttpRequest<'_>, cfg: OAuthConfig<'_>) -> HttpResponse {
-        if req.method() == "GET" && req.url() == "/.well-known/oauth-protected-resource" {
+        let metadata_path = match Url::parse(cfg.metadata_url) {
+            Ok(url) => url.path().to_string(),
+            Err(err) => {
+                eprintln!("Parse metadata url: {}", err);
+                return HttpResponse::builder()
+                    .with_status_code(StatusCode::from_u16(401).unwrap())
+                    .with_headers(vec![("Content-Type".to_string(), "text/plain".to_string())])
+                    .with_body(br#"Unauthorized"#)
+                    .build();
+            }
+        };
+
+        if req.method() == "GET" && req.url() == metadata_path {
             #[derive(Serialize)]
             struct Metadata<'a> {
                 authorization_servers: &'a [&'a str],
@@ -123,7 +136,10 @@ impl<S: Service> Server for S {
                     .with_status_code(StatusCode::from_u16(401).unwrap())
                     .with_headers(vec![
                         ("Content-Type".to_string(), "text/plain".to_string()),
-                        ("WWW-Authenticate".to_string(), "Bearer".to_string()),
+                        (
+                            "WWW-Authenticate".to_string(),
+                            format!("Bearer resource_metadata=\"{}\"", cfg.metadata_url),
+                        ),
                     ])
                     .with_body(br#"Unauthorized"#)
                     .build()
