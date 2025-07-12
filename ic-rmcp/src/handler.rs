@@ -7,7 +7,7 @@ use serde_json::{from_slice, from_value, json, to_value, Value};
 use std::future::Future;
 
 pub mod oauth;
-use oauth::OAuthConfig;
+use oauth::{validate_token, OAuthConfig};
 
 type RxJsonRpcMessage = JsonRpcMessage<ClientRequest, ClientResult, ClientNotification>;
 
@@ -131,6 +131,23 @@ impl<S: Service> Server for S {
                     .build()
             }
         };
+
+        match validate_token(token, cfg.issuer_configs).await {
+            Ok(_) => { // pass claims.sub to context
+            }
+            Err(err) => {
+                // DEBUG: REFACTOR LATER
+                eprintln!("{}", err);
+                return HttpResponse::builder()
+                    .with_status_code(StatusCode::from_u16(401).unwrap())
+                    .with_headers(vec![
+                        ("Content-Type".to_string(), "text/plain".to_string()),
+                        ("WWW-Authenticate".to_string(), "Bearer".to_string()),
+                    ])
+                    .with_body(br#"Unauthorized"#)
+                    .build();
+            }
+        }
 
         self.handle(req).await
     }

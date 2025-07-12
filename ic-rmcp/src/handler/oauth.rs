@@ -1,46 +1,71 @@
-use jsonwebtoken::{decode, decode_header, jwk, Algorithm, DecodingKey, TokenData, Validation};
-use serde::{Deserialize, Serialize};
-use std::error::Error;
 use ic_cdk::api::time;
+use ic_cdk::management_canister::{http_request, HttpMethod, HttpRequestArgs};
+use jsonwebtoken::jwk::JwkSet;
+use jsonwebtoken::{decode, decode_header, jwk, DecodingKey, TokenData, Validation};
+use serde::{Deserialize, Serialize};
+use serde_json::from_slice;
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::error::Error;
+
+thread_local! {
+    pub static JWTSETs: RefCell<HashMap<String, JwkSet>> = RefCell::default();
+}
 
 pub struct OAuthConfig<'a> {
     pub issuer_configs: &'a [IssuerConfig<'a>],
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct GenericClaims {
+pub struct Claims {
+    sub: String,
     iss: String,
     aud: String,
     exp: u64,
 }
 
 #[derive(Debug)]
-struct IssuerConfig<'a> {
+pub struct IssuerConfig<'a> {
     pub issuer: &'a str,
     pub jwks_url: &'a str,
     pub expected_audience: &'a str,
     pub authorization_server: &'a str,
 }
 
-async fn fetch_jwks(jwks_url: &str) -> Result<jwk::JWKSet, Box<dyn Error>> {
-    let client = Client::new();
-    let response = client.get(jwks_url).send()?.json::<jwk::JWKSet>()?;
-    Ok(response)
+async fn fetch_jwks(jwks_url: &str) -> Result<JwkSet, Box<dyn Error>> {
+    if let Some(set) = JWTSETs.with_borrow(|jwt_sets| jwt_sets.get(jwks_url).map(|set| set.clone()))
+    {
+        return Ok(set);
+    }
+
+    let body = http_request(&HttpRequestArgs {
+        url: jwks_url.to_string(),
+        max_response_bytes: Some(5_000),
+        method: HttpMethod::GET,
+        headers: vec![],
+        body: None,
+        transform: None,
+    })
+    .await?
+    .body;
+
+    let set = from_slice::<JwkSet>(&body)?;
+    JWTSETs.with_borrow_mut(|jwt_sets| jwt_sets.insert(jwks_url.to_string(), set.clone()));
+    Ok(set)
 }
 
 fn extract_issuer(token: &str) -> Result<String, Box<dyn Error>> {
     let validation = &mut Validation::default();
     validation.insecure_disable_signature_validation();
 
-    let token_data: TokenData<GenericClaims> =
-        decode(token, &DecodingKey::from_secret(&[]), validation)?;
+    let token_data: TokenData<Claims> = decode(token, &DecodingKey::from_secret(&[]), validation)?;
     Ok(token_data.claims.iss)
 }
 
-async fn validate_token(
+pub async fn validate_token(
     token: &str,
     issuer_configs: &[IssuerConfig<'_>],
-) -> Result<GenericClaims, Box<dyn Error>> {
+) -> Result<Claims, Box<dyn Error>> {
     if token.is_empty() {
         return Err("No token provided".into());
     }
@@ -62,14 +87,14 @@ async fn validate_token(
 
     let decoding_key = DecodingKey::from_jwk(jwk)?;
 
-    let mut validation = Validation::new(header.alg); 
+    let mut validation = Validation::new(header.alg);
     validation.set_issuer(&[&config.issuer]);
     validation.set_audience(&[&config.expected_audience]);
-    validation.validate_exp = false; 
+    validation.validate_exp = false;
 
-    let token_data = decode::<GenericClaims>(token, &decoding_key, &validation)?;
+    let token_data = decode::<Claims>(token, &decoding_key, &validation)?;
 
-    if token_data.claims.exp < time()/ 1_000_000_000 {
+    if token_data.claims.exp < time() / 1_000_000_000 {
         return Err("Token has expired".into());
     }
 
