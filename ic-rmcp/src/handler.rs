@@ -27,7 +27,7 @@ impl<S: Service> Server for S {
 
 trait Service: Handler {
     async fn raw_handle(&self, req: &HttpRequest<'_>) -> HttpResponse {
-        if req.method() != "POST" || req.url() != "/mcp" {
+        if req.method() != "POST" || !req.url().ends_with("/mcp") {
             return HttpResponse::builder()
                 .with_status_code(StatusCode::from_u16(404).unwrap())
                 .with_headers(vec![("Content-Type".to_string(), "text/plain".to_string())])
@@ -410,7 +410,7 @@ mod tests {
         );
 
         assert_eq!(
-            block_on(A{}.raw_handle(&HttpRequest::builder().with_method(Method::POST).with_url("/mcp").with_body(b"{").build())),
+            block_on(A{}.raw_handle(&HttpRequest::builder().with_method(Method::POST).with_url("/foo/mcp").with_body(b"{").build())),
             HttpResponse::builder()
                 .with_status_code(StatusCode::from_u16(200).unwrap())
                 .with_headers(vec![("Content-Type".to_string(), "application/json".to_string())])
