@@ -36,9 +36,32 @@ trait Service: Handler {
                 .build();
         }
 
+        let version = match req
+          .headers()
+          .iter()
+          .find(|(key, _)| key.eq_ignore_ascii_case("MCP-Protocol-Version"))
+          .map(|(_, value)| value.trim()) {
+              Some(version) => match from_str::<ProtocolVersion>(&format!("\"{version}\"")){
+                  Ok(version) => Some(version),
+                  Err(_) => return HttpResponse::builder()
+                              .with_status_code(StatusCode::from_u16(200).unwrap())
+                              .with_headers(vec![("Content-Type".to_string(), "application/json".to_string())])
+                              .with_body(br#"{"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"}, "id": null}"#)
+                              .build()
+              },
+              None => None,
+          };
+
         match from_slice::<Value>(req.body()){
             Ok(Value::Array(req)) => {
-                    let mut results = Vec::new();
+                    if version.is_some_and(|ver| ver.partial_cmp(&protocol_version_2025_06_18()) != Some(Ordering::Less)) {
+                        HttpResponse::builder()
+                              .with_status_code(StatusCode::from_u16(200).unwrap())
+                              .with_headers(vec![("Content-Type".to_string(), "application/json".to_string())])
+                              .with_body(br#"{"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"}, "id": null}"#)
+                              .build()
+                    } else {
+                        let mut results = Vec::new();
                     for message in req {
                         match from_value::<JsonRpcBatchRequestItem<ClientRequest, ClientNotification>>(message) {
                             Ok(JsonRpcBatchRequestItem::Request(r)) => {
@@ -55,6 +78,7 @@ trait Service: Handler {
                     }
 
                     response(results)
+                    }
             },
             Ok(Value::Object(req)) => {
                 match from_value::<RxJsonRpcMessage>(Value::Object(req)) {
@@ -662,6 +686,77 @@ mod tests {
                     "application/json".to_string()
                 )])
                 .with_body(br#"[{"id":"123","jsonrpc":"2.0","result":{}}]"#)
+                .build()
+        );
+
+        assert_eq!(
+            block_on(
+                A {}.raw_handle(
+                    &HttpRequest::builder()
+                        .with_method(Method::POST)
+                        .with_headers(vec![(
+                            "MCP-Protocol-Version".to_string(),
+                            "2025-03-26".to_string()
+                        )])
+                        .with_url("/mcp")
+                        .with_body(
+                            br#"[
+                        {
+                        "jsonrpc": "2.0",
+                        "id": "123",
+                        "method": "ping"
+                        },
+                        {
+                        "jsonrpc": "2.0",
+                        "method": "notifications/initialized"
+                        } 
+                        ]        
+                "#
+                        )
+                        .build()
+                )
+            ),
+            HttpResponse::builder()
+                .with_status_code(StatusCode::from_u16(200).unwrap())
+                .with_headers(vec![(
+                    "Content-Type".to_string(),
+                    "application/json".to_string()
+                )])
+                .with_body(br#"[{"id":"123","jsonrpc":"2.0","result":{}}]"#)
+                .build()
+        );
+
+        assert_eq!(
+            block_on(
+                A {}.raw_handle(
+                    &HttpRequest::builder()
+                        .with_method(Method::POST)
+                        .with_headers(vec![("MCP-Protocol-Version".to_string(), "2025-06-18".to_string())])
+                        .with_url("/mcp")
+                        .with_body(
+                            br#"[
+                        {
+                        "jsonrpc": "2.0",
+                        "id": "123",
+                        "method": "ping"
+                        },
+                        {
+                        "jsonrpc": "2.0",
+                        "method": "notifications/initialized"
+                        } 
+                        ]        
+                "#
+                        )
+                        .build()
+                )
+            ),
+            HttpResponse::builder()
+                .with_status_code(StatusCode::from_u16(200).unwrap())
+                .with_headers(vec![(
+                    "Content-Type".to_string(),
+                    "application/json".to_string()
+                )])
+                .with_body(br#"{"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"}, "id": null}"#)
                 .build()
         );
 
