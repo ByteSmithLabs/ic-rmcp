@@ -58,7 +58,7 @@ impl Handler for MagicSum {
 #[test]
 fn test_auth() {
     assert_eq!(
-        block_on(MagicSum {}.handle_with_auth(&HttpRequest::builder().build(), |_| false)),
+        block_on(MagicSum {}.handle(&HttpRequest::builder().build(), |_| false)),
         HttpResponse::builder()
             .with_status_code(StatusCode::from_u16(401).unwrap())
             .with_headers(vec![("Content-Type".to_string(), "text/plain".to_string())])
@@ -67,7 +67,7 @@ fn test_auth() {
     );
 
     assert_eq!(
-        block_on(MagicSum {}.handle_with_auth(&HttpRequest::builder().build(), |_| true)),
+        block_on(MagicSum {}.handle(&HttpRequest::builder().build(), |_| true)),
         HttpResponse::builder()
             .with_status_code(StatusCode::from_u16(404).unwrap())
             .with_headers(vec![("Content-Type".to_string(), "text/plain".to_string())])
@@ -101,7 +101,7 @@ fn test_initialization() {
                             }      
                 "#
                         )
-                        .build()
+                        .build(), |_| true
                 )
             ),
             HttpResponse::builder()
@@ -128,7 +128,8 @@ fn test_initialization() {
                             }   
                 "#
                     )
-                    .build()
+                    .build(),
+                |_| true
             )
         ),
         HttpResponse::builder()
@@ -155,7 +156,7 @@ fn test_tools() {
                             }    
                 "#
                         )
-                        .build()
+                        .build(), |_| true
                 )
             ),
             HttpResponse::builder()
@@ -189,7 +190,7 @@ fn test_tools() {
                             }    
                 "#
                         )
-                        .build()
+                        .build(), |_| true
                 )
             ),
             HttpResponse::builder()
@@ -221,7 +222,8 @@ fn test_tools() {
                         }    
                 "#
                     )
-                    .build()
+                    .build(),
+                |_| true
             )
         ),
         HttpResponse::builder()
@@ -255,7 +257,8 @@ fn test_unsupported_method() {
                         }    
                 "#
                     )
-                    .build()
+                    .build(),
+                |_| true
             )
         ),
         HttpResponse::builder()
@@ -294,7 +297,7 @@ fn test_batch() {
                         ]   
                 "#
                     )
-                    .build()
+                    .build(), |_| true
             )
         ),
         HttpResponse::builder()

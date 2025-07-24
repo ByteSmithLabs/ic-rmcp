@@ -61,7 +61,7 @@ pub(crate) fn setup() -> Router {
         let cert_req = convert_pluto_to_cert(req);
 
         let response = Adder {}
-            .handle_with_auth(&cert_req, |headers| -> bool {
+            .handle(&cert_req, |headers| -> bool {
                 headers
                     .iter()
                     .any(|(k, v)| k == "x-api-key" && *v == API_KEY.with_borrow(|k| k.clone()))

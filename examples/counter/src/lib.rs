@@ -93,7 +93,7 @@ impl Handler for Counter {
 #[update]
 async fn http_request_update(req: HttpRequest<'_>) -> HttpResponse<'_> {
     Counter {}
-        .handle_with_auth(&req, |headers| -> bool {
+        .handle(&req, |headers| -> bool {
             headers
                 .iter()
                 .any(|(k, v)| k == "x-api-key" && *v == API_KEY.with_borrow(|k| k.clone()))
