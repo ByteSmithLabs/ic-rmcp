@@ -3,7 +3,8 @@ use crate::{model::*, Error};
 use ic_cdk::eprintln;
 use ic_http_certification::{HeaderField, HttpRequest, HttpResponse, StatusCode};
 use serde::Serialize;
-use serde_json::{from_slice, from_value, json, to_value, Value};
+use serde_json::{from_slice, from_str, from_value, json, to_value, Value};
+use std::cmp::Ordering;
 use std::future::Future;
 
 type RxJsonRpcMessage = JsonRpcMessage<ClientRequest, ClientResult, ClientNotification>;
@@ -101,14 +102,24 @@ impl<H: Handler> Service for H {
     ) -> JsonRpcMessage<Request, ServerResult, Notification> {
         let result = match request.request {
             ClientRequest::InitializeRequest(request) => {
-                let info = self.get_info();
-                match request
+                let mut info = self.get_info();
+                info.protocol_version = protocol_version_2025_06_18();
+
+                if let Some(Ordering::Equal) = request
                     .params
                     .protocol_version
                     .partial_cmp(&info.protocol_version)
                 {
-                    Some(_) => Ok(ServerResult::InitializeResult(info)),
-                    _ => Err(Error::internal_error("UnsupportedProtocolVersion", None)),
+                    Ok(ServerResult::InitializeResult(info))
+                } else if let Some(Ordering::Equal) = request
+                    .params
+                    .protocol_version
+                    .partial_cmp(&ProtocolVersion::V_2025_03_26)
+                {
+                    info.protocol_version = ProtocolVersion::V_2025_03_26;
+                    Ok(ServerResult::InitializeResult(info))
+                } else {
+                    Ok(ServerResult::InitializeResult(info))
                 }
             }
             ClientRequest::PingRequest(_) => Ok(ServerResult::empty(())),
@@ -135,6 +146,10 @@ impl<H: Handler> Service for H {
     async fn handle_notification(&self, notification: JsonRpcNotification<ClientNotification>) {
         if let ClientNotification::InitializedNotification(_) = notification.notification {}
     }
+}
+
+fn protocol_version_2025_06_18() -> ProtocolVersion {
+    from_str::<ProtocolVersion>("\"2025-06-18\"").unwrap()
 }
 
 fn response<T: Serialize>(data: T) -> HttpResponse<'static> {
@@ -282,7 +297,7 @@ mod tests {
             request: ClientRequest::InitializeRequest(Request {
                 method: InitializeResultMethod,
                 params: InitializeRequestParam {
-                    protocol_version: ProtocolVersion::LATEST,
+                    protocol_version: ProtocolVersion::V_2025_03_26,
                     capabilities: ClientCapabilities::default(),
                     client_info: Implementation {
                         name: "foo".to_string(),
@@ -298,7 +313,91 @@ mod tests {
 
                 match res.result {
                     ServerResult::InitializeResult(res) => {
-                        assert_eq!(InitializeResult::default(), res);
+                        assert_eq!(
+                            ServerInfo {
+                                protocol_version: ProtocolVersion::V_2025_03_26,
+                                capabilities: ServerCapabilities::default(),
+                                server_info: Implementation::from_build_env(),
+                                instructions: None,
+                            },
+                            res
+                        );
+                    }
+                    _ => panic!("Expected ServerResult::InitializeResult"),
+                }
+            }
+            _ => panic!("Expected JsonRpcMessage::Response"),
+        }
+
+        match block_on(S {}.handle_request(JsonRpcRequest {
+            jsonrpc: JsonRpcVersion2_0,
+            id: NumberOrString::Number(1),
+            request: ClientRequest::InitializeRequest(Request {
+                method: InitializeResultMethod,
+                params: InitializeRequestParam {
+                    protocol_version: protocol_version_2025_06_18(),
+                    capabilities: ClientCapabilities::default(),
+                    client_info: Implementation {
+                        name: "foo".to_string(),
+                        version: "bar".to_string(),
+                    },
+                },
+                extensions: Extensions::new(),
+            }),
+        })) {
+            JsonRpcMessage::Response(res) => {
+                assert_eq!(res.jsonrpc, JsonRpcVersion2_0 {});
+                assert_eq!(res.id, NumberOrString::Number(1));
+
+                match res.result {
+                    ServerResult::InitializeResult(res) => {
+                        assert_eq!(
+                            ServerInfo {
+                                protocol_version: protocol_version_2025_06_18(),
+                                capabilities: ServerCapabilities::default(),
+                                server_info: Implementation::from_build_env(),
+                                instructions: None,
+                            },
+                            res
+                        );
+                    }
+                    _ => panic!("Expected ServerResult::InitializeResult"),
+                }
+            }
+            _ => panic!("Expected JsonRpcMessage::Response"),
+        }
+
+        match block_on(S {}.handle_request(JsonRpcRequest {
+            jsonrpc: JsonRpcVersion2_0,
+            id: NumberOrString::Number(1),
+            request: ClientRequest::InitializeRequest(Request {
+                method: InitializeResultMethod,
+                params: InitializeRequestParam {
+                    protocol_version: from_str::<ProtocolVersion>("\"1970-01-01\"").unwrap(),
+                    capabilities: ClientCapabilities::default(),
+                    client_info: Implementation {
+                        name: "foo".to_string(),
+                        version: "bar".to_string(),
+                    },
+                },
+                extensions: Extensions::new(),
+            }),
+        })) {
+            JsonRpcMessage::Response(res) => {
+                assert_eq!(res.jsonrpc, JsonRpcVersion2_0 {});
+                assert_eq!(res.id, NumberOrString::Number(1));
+
+                match res.result {
+                    ServerResult::InitializeResult(res) => {
+                        assert_eq!(
+                            ServerInfo {
+                                protocol_version: protocol_version_2025_06_18(),
+                                capabilities: ServerCapabilities::default(),
+                                server_info: Implementation::from_build_env(),
+                                instructions: None,
+                            },
+                            res
+                        );
                     }
                     _ => panic!("Expected ServerResult::InitializeResult"),
                 }
