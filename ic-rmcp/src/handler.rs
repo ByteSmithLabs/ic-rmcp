@@ -9,7 +9,24 @@ use std::future::Future;
 type RxJsonRpcMessage = JsonRpcMessage<ClientRequest, ClientResult, ClientNotification>;
 
 impl<S: Service> Server for S {
-    async fn handle(&self, req: &HttpRequest<'_>) -> HttpResponse {
+    async fn handle(
+        &self,
+        req: &HttpRequest<'_>,
+        auth: impl Fn(&[HeaderField]) -> bool,
+    ) -> HttpResponse {
+        match auth(req.headers()) {
+            true => self.raw_handle(req).await,
+            false => HttpResponse::builder()
+                .with_status_code(StatusCode::from_u16(401).unwrap())
+                .with_headers(vec![("Content-Type".to_string(), "text/plain".to_string())])
+                .with_body(br#"Unauthorized"#)
+                .build(),
+        }
+    }
+}
+
+trait Service: Handler {
+    async fn raw_handle(&self, req: &HttpRequest<'_>) -> HttpResponse {
         if req.method() != "POST" || req.url() != "/mcp" {
             return HttpResponse::builder()
                 .with_status_code(StatusCode::from_u16(404).unwrap())
@@ -68,27 +85,8 @@ impl<S: Service> Server for S {
                 .with_body(br#"{"jsonrpc": "2.0", "error": {"code": -32700, "message": "Parse error"},"id": null}"#)
                 .build()
             },
-
     }
     }
-
-    async fn handle_with_auth(
-        &self,
-        req: &HttpRequest<'_>,
-        auth: impl Fn(&[HeaderField]) -> bool,
-    ) -> HttpResponse {
-        match auth(req.headers()) {
-            true => self.handle(req).await,
-            false => HttpResponse::builder()
-                .with_status_code(StatusCode::from_u16(401).unwrap())
-                .with_headers(vec![("Content-Type".to_string(), "text/plain".to_string())])
-                .with_body(br#"Unauthorized"#)
-                .build(),
-        }
-    }
-}
-
-trait Service: Handler {
     async fn handle_request(
         &self,
         request: JsonRpcRequest<ClientRequest>,
@@ -388,13 +386,13 @@ mod tests {
     }
 
     #[test]
-    fn test_server_handle() {
+    fn test_service_raw_handle() {
         use ic_http_certification::Method;
         struct A;
         impl Handler for A {}
 
         assert_eq!(
-            block_on(A {}.handle(&HttpRequest::builder().with_url("/foo").build())),
+            block_on(A {}.raw_handle(&HttpRequest::builder().with_url("/foo").build())),
             HttpResponse::builder()
                 .with_status_code(StatusCode::from_u16(404).unwrap())
                 .with_headers(vec![("Content-Type".to_string(), "text/plain".to_string())])
@@ -403,7 +401,7 @@ mod tests {
         );
 
         assert_eq!(
-            block_on(A {}.handle(&HttpRequest::builder().with_method(Method::GET).build())),
+            block_on(A {}.raw_handle(&HttpRequest::builder().with_method(Method::GET).build())),
             HttpResponse::builder()
                 .with_status_code(StatusCode::from_u16(404).unwrap())
                 .with_headers(vec![("Content-Type".to_string(), "text/plain".to_string())])
@@ -412,7 +410,7 @@ mod tests {
         );
 
         assert_eq!(
-            block_on(A{}.handle(&HttpRequest::builder().with_method(Method::POST).with_url("/mcp").with_body(b"{").build())),
+            block_on(A{}.raw_handle(&HttpRequest::builder().with_method(Method::POST).with_url("/mcp").with_body(b"{").build())),
             HttpResponse::builder()
                 .with_status_code(StatusCode::from_u16(200).unwrap())
                 .with_headers(vec![("Content-Type".to_string(), "application/json".to_string())])
@@ -420,7 +418,7 @@ mod tests {
                 .build());
 
         assert_eq!(
-            block_on(A{}.handle(&HttpRequest::builder().with_method(Method::POST).with_url("/mcp").with_body(b"12").build())),
+            block_on(A{}.raw_handle(&HttpRequest::builder().with_method(Method::POST).with_url("/mcp").with_body(b"12").build())),
             HttpResponse::builder()
                 .with_status_code(StatusCode::from_u16(200).unwrap())
                 .with_headers(vec![("Content-Type".to_string(), "application/json".to_string())])
@@ -428,7 +426,7 @@ mod tests {
                 .build());
 
         assert_eq!(
-            block_on(A{}.handle(&HttpRequest::builder().with_method(Method::POST).with_url("/mcp").with_body(br#""foo""#).build())),
+            block_on(A{}.raw_handle(&HttpRequest::builder().with_method(Method::POST).with_url("/mcp").with_body(br#""foo""#).build())),
             HttpResponse::builder()
                 .with_status_code(StatusCode::from_u16(200).unwrap())
                 .with_headers(vec![("Content-Type".to_string(), "application/json".to_string())])
@@ -436,7 +434,7 @@ mod tests {
                 .build());
 
         assert_eq!(
-            block_on(A{}.handle(&HttpRequest::builder().with_method(Method::POST).with_url("/mcp").with_body(br#"null"#).build())),
+            block_on(A{}.raw_handle(&HttpRequest::builder().with_method(Method::POST).with_url("/mcp").with_body(br#"null"#).build())),
             HttpResponse::builder()
                 .with_status_code(StatusCode::from_u16(200).unwrap())
                 .with_headers(vec![("Content-Type".to_string(), "application/json".to_string())])
@@ -444,7 +442,7 @@ mod tests {
                 .build());
 
         assert_eq!(
-            block_on(A{}.handle(&HttpRequest::builder().with_method(Method::POST).with_url("/mcp").with_body(br#"true"#).build())),
+            block_on(A{}.raw_handle(&HttpRequest::builder().with_method(Method::POST).with_url("/mcp").with_body(br#"true"#).build())),
             HttpResponse::builder()
                 .with_status_code(StatusCode::from_u16(200).unwrap())
                 .with_headers(vec![("Content-Type".to_string(), "application/json".to_string())])
@@ -453,7 +451,7 @@ mod tests {
 
         assert_eq!(
             block_on(A{}
-                .handle(&HttpRequest::builder().with_method(Method::POST).with_url("/mcp")
+                .raw_handle(&HttpRequest::builder().with_method(Method::POST).with_url("/mcp")
                 .with_body(br#"
                     {
                     "jsonrpc": "2.0",
@@ -487,7 +485,7 @@ mod tests {
 
         assert_eq!(
             block_on(
-                A {}.handle(
+                A {}.raw_handle(
                     &HttpRequest::builder()
                         .with_method(Method::POST)
                         .with_url("/mcp")
@@ -509,7 +507,7 @@ mod tests {
 
         assert_eq!(
             block_on(
-                A {}.handle(
+                A {}.raw_handle(
                     &HttpRequest::builder()
                         .with_method(Method::POST)
                         .with_url("/mcp")
@@ -537,7 +535,7 @@ mod tests {
 
         assert_eq!(
             block_on(
-                A {}.handle(
+                A {}.raw_handle(
                     &HttpRequest::builder()
                         .with_method(Method::POST)
                         .with_url("/mcp")
@@ -570,7 +568,7 @@ mod tests {
 
         assert_eq!(
             block_on(
-                A {}.handle(
+                A {}.raw_handle(
                     &HttpRequest::builder()
                         .with_method(Method::POST)
                         .with_url("/mcp")
@@ -601,14 +599,12 @@ mod tests {
     }
 
     #[test]
-    fn test_server_handle_auth() {
+    fn test_server_handle() {
         struct A;
         impl Handler for A {}
 
         assert_eq!(
-            block_on(
-                A {}.handle_with_auth(&HttpRequest::builder().with_url("/foo").build(), |_| false)
-            ),
+            block_on(A {}.handle(&HttpRequest::builder().with_url("/foo").build(), |_| false)),
             HttpResponse::builder()
                 .with_status_code(StatusCode::from_u16(401).unwrap())
                 .with_headers(vec![("Content-Type".to_string(), "text/plain".to_string())])
@@ -617,9 +613,7 @@ mod tests {
         );
 
         assert_eq!(
-            block_on(
-                A {}.handle_with_auth(&HttpRequest::builder().with_url("/foo").build(), |_| true)
-            ),
+            block_on(A {}.handle(&HttpRequest::builder().with_url("/foo").build(), |_| true)),
             HttpResponse::builder()
                 .with_status_code(StatusCode::from_u16(404).unwrap())
                 .with_headers(vec![("Content-Type".to_string(), "text/plain".to_string())])
