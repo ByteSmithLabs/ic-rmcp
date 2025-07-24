@@ -313,9 +313,15 @@ mod tests {
 
                 match res.result {
                     ServerResult::InitializeResult(res) => {
-                        let mut info = InitializeResult::default();
-                        info.protocol_version = ProtocolVersion::V_2025_03_26;
-                        assert_eq!(info, res);
+                        assert_eq!(
+                            ServerInfo {
+                                protocol_version: ProtocolVersion::V_2025_03_26,
+                                capabilities: ServerCapabilities::default(),
+                                server_info: Implementation::from_build_env(),
+                                instructions: None,
+                            },
+                            res
+                        );
                     }
                     _ => panic!("Expected ServerResult::InitializeResult"),
                 }
@@ -345,9 +351,15 @@ mod tests {
 
                 match res.result {
                     ServerResult::InitializeResult(res) => {
-                        let mut info = InitializeResult::default();
-                        info.protocol_version = protocol_version_2025_06_18();
-                        assert_eq!(info, res);
+                        assert_eq!(
+                            ServerInfo {
+                                protocol_version: protocol_version_2025_06_18(),
+                                capabilities: ServerCapabilities::default(),
+                                server_info: Implementation::from_build_env(),
+                                instructions: None,
+                            },
+                            res
+                        );
                     }
                     _ => panic!("Expected ServerResult::InitializeResult"),
                 }
@@ -377,9 +389,15 @@ mod tests {
 
                 match res.result {
                     ServerResult::InitializeResult(res) => {
-                        let mut info = InitializeResult::default();
-                        info.protocol_version = protocol_version_2025_06_18();
-                        assert_eq!(info, res);
+                        assert_eq!(
+                            ServerInfo {
+                                protocol_version: protocol_version_2025_06_18(),
+                                capabilities: ServerCapabilities::default(),
+                                server_info: Implementation::from_build_env(),
+                                instructions: None,
+                            },
+                            res
+                        );
                     }
                     _ => panic!("Expected ServerResult::InitializeResult"),
                 }
