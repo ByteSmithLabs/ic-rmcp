@@ -21,9 +21,8 @@ pub struct Claims {
 pub struct IssuerConfig {
     pub issuer: String,
     pub jwks_url: String,
-    pub expected_audience: String,
-    pub authorization_server: String,
-    pub allowed_subjects: Vec<String>,
+    pub authorization_server: Vec<String>,
+    pub audience: String,
 }
 
 pub fn validate_token(
@@ -49,7 +48,7 @@ pub fn validate_token(
 
     let mut validation = Validation::new(header.alg);
     validation.set_issuer(&[&issuer_configs.issuer]);
-    validation.set_audience(&[&issuer_configs.expected_audience]);
+    validation.set_audience(&[&issuer_configs.audience]);
 
     let token_data = decode::<Claims>(token, &decoding_key, &validation)
         .map_err(|err| format!("invalid token: {err}"))?;

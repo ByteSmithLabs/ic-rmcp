@@ -47,12 +47,18 @@ impl<S: Service> Server for S {
             #[derive(Serialize)]
             struct Metadata<'a> {
                 resource: &'a str,
-                authorization_servers: &'a str,
+                authorization_servers: &'a [&'a str],
             }
 
             return response(Metadata {
                 resource: &cfg.resource,
-                authorization_servers: &cfg.issuer_configs.authorization_server,
+                authorization_servers: cfg
+                    .issuer_configs
+                    .authorization_server
+                    .iter()
+                    .map(|s| s.as_str())
+                    .collect::<Vec<&str>>()
+                    .as_slice(),
             });
         }
 
@@ -91,17 +97,7 @@ impl<S: Service> Server for S {
         };
 
         match validate_token(token, &cfg.issuer_configs, jwk_set) {
-            Ok(claims) => {
-                if cfg.issuer_configs.allowed_subjects.contains(&claims.sub) {
-                    self.raw_handle(req).await
-                } else {
-                    HttpResponse::builder()
-                        .with_status_code(StatusCode::from_u16(403).unwrap())
-                        .with_headers(vec![("Content-Type".to_string(), "text/plain".to_string())])
-                        .with_body(br#"The subject is not authorized to perform this action."#)
-                        .build()
-                }
-            }
+            Ok(_) => self.raw_handle(req).await,
             Err(_err) => HttpResponse::builder()
                 .with_status_code(StatusCode::from_u16(401).unwrap())
                 .with_headers(vec![
@@ -942,7 +938,7 @@ mod tests {
                             .to_string(),
                         resource: "https://my-server.com".to_string(),
                         issuer_configs: IssuerConfig {
-                            authorization_server: "https://authorization-server.com".to_string(),
+                            authorization_server: vec!["https://authorization-server.com".to_string()],
                             ..Default::default()
                         },
                     }
@@ -951,7 +947,7 @@ mod tests {
             HttpResponse::builder()
                 .with_status_code(StatusCode::from_u16(200).unwrap())
                 .with_headers(vec![("Content-Type".to_string(), "application/json".to_string())])
-                .with_body(br#"{"resource":"https://my-server.com","authorization_servers":"https://authorization-server.com"}"#)
+                .with_body(br#"{"resource":"https://my-server.com","authorization_servers":["https://authorization-server.com"]}"#)
                 .build()
         );
 
