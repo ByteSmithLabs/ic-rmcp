@@ -1,6 +1,6 @@
 use ic_cdk::{init, query, update};
 use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
-use ic_rmcp::{model::*, schema_for_type, Error, Handler, Server};
+use ic_rmcp::{model::*, schema_for_type, Context, Error, Handler, Server};
 use std::cell::RefCell;
 
 thread_local! {
@@ -24,7 +24,7 @@ fn http_request(_: HttpRequest) -> HttpResponse {
 struct Counter;
 
 impl Handler for Counter {
-    fn get_info(&self) -> ServerInfo {
+    fn get_info(&self, _: Context) -> ServerInfo {
         ServerInfo {
             capabilities: ServerCapabilities::builder().enable_tools().build(),
             server_info: Implementation {
@@ -36,7 +36,11 @@ impl Handler for Counter {
         }
     }
 
-    async fn list_tools(&self, _: Option<PaginatedRequestParam>) -> Result<ListToolsResult, Error> {
+    async fn list_tools(
+        &self,
+        _: Context,
+        _: Option<PaginatedRequestParam>,
+    ) -> Result<ListToolsResult, Error> {
         Ok(ListToolsResult {
             next_cursor: None,
             tools: vec![
@@ -59,7 +63,11 @@ impl Handler for Counter {
         })
     }
 
-    async fn call_tool(&self, requests: CallToolRequestParam) -> Result<CallToolResult, Error> {
+    async fn call_tool(
+        &self,
+        _: Context,
+        requests: CallToolRequestParam,
+    ) -> Result<CallToolResult, Error> {
         match requests.name.as_ref() {
             "increase" => {
                 COUNTER.with(|counter| {

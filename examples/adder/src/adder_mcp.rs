@@ -1,4 +1,4 @@
-use ic_rmcp::{model::*, schema_for_type, Error, Handler};
+use ic_rmcp::{model::*, schema_for_type, Context, Error, Handler};
 use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::{from_value, Value};
@@ -12,7 +12,7 @@ struct AddRequest {
 pub struct Adder;
 
 impl Handler for Adder {
-    fn get_info(&self) -> ServerInfo {
+    fn get_info(&self, _: Context) -> ServerInfo {
         ServerInfo {
             capabilities: ServerCapabilities::builder().enable_tools().build(),
             server_info: Implementation {
@@ -24,7 +24,11 @@ impl Handler for Adder {
         }
     }
 
-    async fn list_tools(&self, _: Option<PaginatedRequestParam>) -> Result<ListToolsResult, Error> {
+    async fn list_tools(
+        &self,
+        _: Context,
+        _: Option<PaginatedRequestParam>,
+    ) -> Result<ListToolsResult, Error> {
         ic_cdk::println!("List tools called");
         Ok(ListToolsResult {
             next_cursor: None,
@@ -36,7 +40,11 @@ impl Handler for Adder {
         })
     }
 
-    async fn call_tool(&self, requests: CallToolRequestParam) -> Result<CallToolResult, Error> {
+    async fn call_tool(
+        &self,
+        _: Context,
+        requests: CallToolRequestParam,
+    ) -> Result<CallToolResult, Error> {
         ic_cdk::println!(
             "Call tool: {}, arguments: {:?}",
             requests.name,
