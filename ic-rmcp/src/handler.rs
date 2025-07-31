@@ -1,4 +1,5 @@
 use crate::server::Server;
+use crate::state::fetch_jwks;
 use crate::{model::*, Error};
 use ic_cdk::eprintln;
 use ic_http_certification::{HeaderField, HttpRequest, HttpResponse, StatusCode};
@@ -6,6 +7,10 @@ use serde::Serialize;
 use serde_json::{from_slice, from_str, from_value, json, to_value, Value};
 use std::cmp::Ordering;
 use std::future::Future;
+use url::Url;
+
+pub mod oauth;
+use oauth::{validate_token, OAuthConfig};
 
 type RxJsonRpcMessage = JsonRpcMessage<ClientRequest, ClientResult, ClientNotification>;
 
@@ -21,6 +26,92 @@ impl<S: Service> Server for S {
                 .with_status_code(StatusCode::from_u16(401).unwrap())
                 .with_headers(vec![("Content-Type".to_string(), "text/plain".to_string())])
                 .with_body(br#"Unauthorized"#)
+                .build(),
+        }
+    }
+
+    async fn handle_with_oauth(&self, req: &HttpRequest<'_>, cfg: OAuthConfig) -> HttpResponse {
+        let metadata_path = match Url::parse(&cfg.metadata_url) {
+            Ok(url) => url.path().to_string(),
+            Err(err) => {
+                eprintln!("Parse metadata url: {}", err);
+                return HttpResponse::builder()
+                    .with_status_code(StatusCode::from_u16(500).unwrap())
+                    .with_headers(vec![("Content-Type".to_string(), "text/plain".to_string())])
+                    .with_body(br#"Internal Error"#)
+                    .build();
+            }
+        };
+
+        if req.method() == "GET" && req.url() == metadata_path {
+            #[derive(Serialize)]
+            struct Metadata<'a> {
+                resource: &'a str,
+                authorization_servers: &'a str,
+            }
+
+            return response(Metadata {
+                resource: &cfg.resource,
+                authorization_servers: &cfg.issuer_configs.authorization_server,
+            });
+        }
+
+        let token = match req
+            .headers()
+            .iter()
+            .find(|(key, _)| key.eq_ignore_ascii_case("Authorization"))
+            .and_then(|(_, value)| value.strip_prefix("Bearer "))
+        {
+            Some(token) => token,
+            None => {
+                return HttpResponse::builder()
+                    .with_status_code(StatusCode::from_u16(401).unwrap())
+                    .with_headers(vec![
+                        ("Content-Type".to_string(), "text/plain".to_string()),
+                        (
+                            "WWW-Authenticate".to_string(),
+                            format!("Bearer resource_metadata=\"{}\"", cfg.metadata_url),
+                        ),
+                    ])
+                    .with_body(br#"Unauthorized"#)
+                    .build()
+            }
+        };
+
+        let jwk_set = match fetch_jwks(&cfg.issuer_configs.jwks_url).await {
+            Ok(set) => set,
+            Err(err) => {
+                eprintln!("fetch jwk set: {}", err);
+                return HttpResponse::builder()
+                    .with_status_code(StatusCode::from_u16(500).unwrap())
+                    .with_headers(vec![("Content-Type".to_string(), "text/plain".to_string())])
+                    .with_body(br#"Internal Error"#)
+                    .build();
+            }
+        };
+
+        match validate_token(token, &cfg.issuer_configs, jwk_set) {
+            Ok(claims) => {
+                if cfg.issuer_configs.allowed_subjects.contains(&claims.sub) {
+                    self.raw_handle(req).await
+                } else {
+                    HttpResponse::builder()
+                        .with_status_code(StatusCode::from_u16(403).unwrap())
+                        .with_headers(vec![("Content-Type".to_string(), "text/plain".to_string())])
+                        .with_body(br#"The subject is not authorized to perform this action."#)
+                        .build()
+                }
+            }
+            Err(_err) => HttpResponse::builder()
+                .with_status_code(StatusCode::from_u16(401).unwrap())
+                .with_headers(vec![
+                    ("Content-Type".to_string(), "text/plain".to_string()),
+                    (
+                        "WWW-Authenticate".to_string(),
+                        format!("Bearer resource_metadata=\"{}\"", cfg.metadata_url),
+                    ),
+                ])
+                .with_body(br#"Token invalid"#)
                 .build(),
         }
     }
@@ -812,6 +903,79 @@ mod tests {
                 .with_status_code(StatusCode::from_u16(404).unwrap())
                 .with_headers(vec![("Content-Type".to_string(), "text/plain".to_string())])
                 .with_body(b"Not Found or Method Not Allowed. Use POST to /mcp")
+                .build()
+        );
+    }
+
+    #[test]
+    fn test_server_handle_with_oauth() {
+        use crate::IssuerConfig;
+        use ic_http_certification::Method;
+
+        struct A;
+        impl Handler for A {}
+
+        assert_eq!(
+            block_on(A {}.handle_with_oauth(
+                &HttpRequest::builder().with_url("/foo").build(),
+                OAuthConfig {
+                    metadata_url: "foo".to_string(),
+                    ..Default::default()
+                }
+            )),
+            HttpResponse::builder()
+                .with_status_code(StatusCode::from_u16(500).unwrap())
+                .with_headers(vec![("Content-Type".to_string(), "text/plain".to_string())])
+                .with_body(br#"Internal Error"#)
+                .build()
+        );
+
+        assert_eq!(
+            block_on(
+                A {}.handle_with_oauth(
+                    &HttpRequest::builder()
+                        .with_method(Method::GET)
+                        .with_url("/.well-known/oauth-protected-resource")
+                        .build(),
+                    OAuthConfig {
+                        metadata_url: "https://my-server.com/.well-known/oauth-protected-resource"
+                            .to_string(),
+                        resource: "https://my-server.com".to_string(),
+                        issuer_configs: IssuerConfig {
+                            authorization_server: "https://authorization-server.com".to_string(),
+                            ..Default::default()
+                        },
+                    }
+                )
+            ),
+            HttpResponse::builder()
+                .with_status_code(StatusCode::from_u16(200).unwrap())
+                .with_headers(vec![("Content-Type".to_string(), "application/json".to_string())])
+                .with_body(br#"{"resource":"https://my-server.com","authorization_servers":"https://authorization-server.com"}"#)
+                .build()
+        );
+
+        assert_eq!(
+            block_on(
+                A {}.handle_with_oauth(
+                    &HttpRequest::builder()
+                        .with_method(Method::POST)
+                        .with_url("/mcp")
+                        .build(),
+                    OAuthConfig {
+                        metadata_url: "https://my-server.com/.well-known/oauth-protected-resource"
+                            .to_string(),
+                        ..Default::default()
+                    }
+                )
+            ),
+            HttpResponse::builder()
+                .with_status_code(StatusCode::from_u16(401).unwrap())
+                .with_headers(vec![
+                    ("Content-Type".to_string(), "text/plain".to_string()),
+                     ("WWW-Authenticate".to_string(), "Bearer resource_metadata=\"https://my-server.com/.well-known/oauth-protected-resource\"".to_string())
+                    ])
+                .with_body(br#"Unauthorized"#)
                 .build()
         );
     }
