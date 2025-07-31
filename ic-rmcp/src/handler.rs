@@ -947,7 +947,7 @@ mod tests {
             HttpResponse::builder()
                 .with_status_code(StatusCode::from_u16(200).unwrap())
                 .with_headers(vec![("Content-Type".to_string(), "application/json".to_string())])
-                .with_body(br#"{"resource":"https://my-server.com","authorization_servers":"https://authorization-server.com"}"#)
+                .with_body(br#"{"resource":"https://my-server.com","authorization_servers":["https://authorization-server.com"]}"#)
                 .build()
         );
 
