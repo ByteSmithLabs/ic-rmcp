@@ -16,7 +16,7 @@ struct MagicSumRequest {
 }
 
 impl Handler for MagicSum {
-    fn get_info(&self) -> ServerInfo {
+    fn get_info(&self, _: Context) -> ServerInfo {
         ServerInfo {
             capabilities: ServerCapabilities::builder().enable_tools().build(),
             server_info: Implementation {
@@ -28,7 +28,11 @@ impl Handler for MagicSum {
         }
     }
 
-    async fn list_tools(&self, _: Option<PaginatedRequestParam>) -> Result<ListToolsResult, Error> {
+    async fn list_tools(
+        &self,
+        _: Context,
+        _: Option<PaginatedRequestParam>,
+    ) -> Result<ListToolsResult, Error> {
         Ok(ListToolsResult {
             next_cursor: None,
             tools: vec![Tool::new(
@@ -39,7 +43,11 @@ impl Handler for MagicSum {
         })
     }
 
-    async fn call_tool(&self, request: CallToolRequestParam) -> Result<CallToolResult, Error> {
+    async fn call_tool(
+        &self,
+        _: Context,
+        request: CallToolRequestParam,
+    ) -> Result<CallToolResult, Error> {
         match request.name.as_ref() {
             "calculate_magic_sum" => match request.arguments {
                 None => Err(Error::invalid_params("invalid arguments to tool add", None)),

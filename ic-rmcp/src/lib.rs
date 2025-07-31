@@ -1,5 +1,5 @@
 mod handler;
-pub use handler::Handler;
+pub use handler::{Context, Handler};
 
 mod server;
 pub use server::Server;

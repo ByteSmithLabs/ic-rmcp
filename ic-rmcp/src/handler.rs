@@ -12,6 +12,11 @@ use url::Url;
 pub mod oauth;
 use oauth::{validate_token, OAuthConfig};
 
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Context {
+    pub subject: Option<String>,
+}
+
 type RxJsonRpcMessage = JsonRpcMessage<ClientRequest, ClientResult, ClientNotification>;
 
 impl<S: Service> Server for S {
@@ -21,7 +26,7 @@ impl<S: Service> Server for S {
         auth: impl Fn(&[HeaderField]) -> bool,
     ) -> HttpResponse {
         match auth(req.headers()) {
-            true => self.raw_handle(req).await,
+            true => self.raw_handle(None, req).await,
             false => HttpResponse::builder()
                 .with_status_code(StatusCode::from_u16(401).unwrap())
                 .with_headers(vec![("Content-Type".to_string(), "text/plain".to_string())])
@@ -97,7 +102,7 @@ impl<S: Service> Server for S {
         };
 
         match validate_token(token, &cfg.issuer_configs, jwk_set) {
-            Ok(_) => self.raw_handle(req).await,
+            Ok(claims) => self.raw_handle(Some(claims.sub), req).await,
             Err(_err) => HttpResponse::builder()
                 .with_status_code(StatusCode::from_u16(401).unwrap())
                 .with_headers(vec![
@@ -114,7 +119,7 @@ impl<S: Service> Server for S {
 }
 
 trait Service: Handler {
-    async fn raw_handle(&self, req: &HttpRequest<'_>) -> HttpResponse {
+    async fn raw_handle(&self, subject: Option<String>, req: &HttpRequest<'_>) -> HttpResponse {
         if req.method() != "POST" || !req.url().ends_with("/mcp") {
             return HttpResponse::builder()
                 .with_status_code(StatusCode::from_u16(404).unwrap())
@@ -152,7 +157,7 @@ trait Service: Handler {
                     for message in req {
                         match from_value::<JsonRpcBatchRequestItem<ClientRequest, ClientNotification>>(message) {
                             Ok(JsonRpcBatchRequestItem::Request(r)) => {
-                                results.push(to_value(self.handle_request(r).await).unwrap_or(json!({"jsonrpc":"2.0","error":{"code":-32603,"message":"Internal error"}})))
+                                results.push(to_value(self.handle_request(subject.clone(),r).await).unwrap_or(json!({"jsonrpc":"2.0","error":{"code":-32603,"message":"Internal error"}})))
                             }
                             Ok(JsonRpcBatchRequestItem::Notification(n)) => {
                                 self.handle_notification(n).await
@@ -169,7 +174,7 @@ trait Service: Handler {
             },
             Ok(Value::Object(req)) => {
                 match from_value::<RxJsonRpcMessage>(Value::Object(req)) {
-                    Ok(JsonRpcMessage::Request(request)) => response(self.handle_request(request).await),
+                    Ok(JsonRpcMessage::Request(request)) => response(self.handle_request(subject, request).await),
                     Ok(JsonRpcMessage::Notification(notification)) => {
                             self.handle_notification(notification).await;
                             HttpResponse::builder()
@@ -201,6 +206,7 @@ trait Service: Handler {
     }
     async fn handle_request(
         &self,
+        subject: Option<String>,
         request: JsonRpcRequest<ClientRequest>,
     ) -> JsonRpcMessage<Request, ServerResult, Notification>;
     async fn handle_notification(&self, notification: JsonRpcNotification<ClientNotification>);
@@ -209,11 +215,12 @@ trait Service: Handler {
 impl<H: Handler> Service for H {
     async fn handle_request(
         &self,
+        subject: Option<String>,
         request: JsonRpcRequest<ClientRequest>,
     ) -> JsonRpcMessage<Request, ServerResult, Notification> {
         let result = match request.request {
             ClientRequest::InitializeRequest(request) => {
-                let mut info = self.get_info();
+                let mut info = self.get_info(Context { subject });
                 info.protocol_version = protocol_version_2025_06_18();
 
                 if let Some(Ordering::Equal) = request
@@ -235,11 +242,11 @@ impl<H: Handler> Service for H {
             }
             ClientRequest::PingRequest(_) => Ok(ServerResult::empty(())),
             ClientRequest::CallToolRequest(request) => self
-                .call_tool(request.params)
+                .call_tool(Context { subject }, request.params)
                 .await
                 .map(ServerResult::CallToolResult),
             ClientRequest::ListToolsRequest(request) => self
-                .list_tools(request.params)
+                .list_tools(Context { subject }, request.params)
                 .await
                 .map(ServerResult::ListToolsResult),
             _ => Err(Error::new(
@@ -288,17 +295,19 @@ fn response<T: Serialize>(data: T) -> HttpResponse<'static> {
 pub trait Handler {
     fn call_tool(
         &self,
+        context: Context,
         request: CallToolRequestParam,
     ) -> impl Future<Output = Result<CallToolResult, Error>> {
         std::future::ready(Err(Error::method_not_found::<CallToolRequestMethod>()))
     }
     fn list_tools(
         &self,
+        context: Context,
         request: Option<PaginatedRequestParam>,
     ) -> impl Future<Output = Result<ListToolsResult, Error>> {
         std::future::ready(Ok(ListToolsResult::default()))
     }
-    fn get_info(&self) -> ServerInfo {
+    fn get_info(&self, context: Context) -> ServerInfo {
         ServerInfo::default()
     }
 }
@@ -316,19 +325,22 @@ mod tests {
         impl Handler for H {}
 
         assert_eq!(
-            block_on(H {}.call_tool(CallToolRequestParam {
-                name: Cow::from("foo"),
-                arguments: None
-            })),
+            block_on(H {}.call_tool(
+                Context::default(),
+                CallToolRequestParam {
+                    name: Cow::from("foo"),
+                    arguments: None
+                }
+            )),
             Err(Error::method_not_found::<CallToolRequestMethod>())
         );
 
         assert_eq!(
-            block_on(H {}.list_tools(None)),
+            block_on(H {}.list_tools(Context::default(), None)),
             Ok(ListToolsResult::default())
         );
 
-        assert_eq!(H {}.get_info(), ServerInfo::default());
+        assert_eq!(H {}.get_info(Context::default()), ServerInfo::default());
     }
 
     #[test]
@@ -402,22 +414,25 @@ mod tests {
             }),
         }));
 
-        match block_on(S {}.handle_request(JsonRpcRequest {
-            jsonrpc: JsonRpcVersion2_0,
-            id: NumberOrString::Number(1),
-            request: ClientRequest::InitializeRequest(Request {
-                method: InitializeResultMethod,
-                params: InitializeRequestParam {
-                    protocol_version: ProtocolVersion::V_2025_03_26,
-                    capabilities: ClientCapabilities::default(),
-                    client_info: Implementation {
-                        name: "foo".to_string(),
-                        version: "bar".to_string(),
+        match block_on(S {}.handle_request(
+            None,
+            JsonRpcRequest {
+                jsonrpc: JsonRpcVersion2_0,
+                id: NumberOrString::Number(1),
+                request: ClientRequest::InitializeRequest(Request {
+                    method: InitializeResultMethod,
+                    params: InitializeRequestParam {
+                        protocol_version: ProtocolVersion::V_2025_03_26,
+                        capabilities: ClientCapabilities::default(),
+                        client_info: Implementation {
+                            name: "foo".to_string(),
+                            version: "bar".to_string(),
+                        },
                     },
-                },
-                extensions: Extensions::new(),
-            }),
-        })) {
+                    extensions: Extensions::new(),
+                }),
+            },
+        )) {
             JsonRpcMessage::Response(res) => {
                 assert_eq!(res.jsonrpc, JsonRpcVersion2_0 {});
                 assert_eq!(res.id, NumberOrString::Number(1));
@@ -440,22 +455,25 @@ mod tests {
             _ => panic!("Expected JsonRpcMessage::Response"),
         }
 
-        match block_on(S {}.handle_request(JsonRpcRequest {
-            jsonrpc: JsonRpcVersion2_0,
-            id: NumberOrString::Number(1),
-            request: ClientRequest::InitializeRequest(Request {
-                method: InitializeResultMethod,
-                params: InitializeRequestParam {
-                    protocol_version: protocol_version_2025_06_18(),
-                    capabilities: ClientCapabilities::default(),
-                    client_info: Implementation {
-                        name: "foo".to_string(),
-                        version: "bar".to_string(),
+        match block_on(S {}.handle_request(
+            None,
+            JsonRpcRequest {
+                jsonrpc: JsonRpcVersion2_0,
+                id: NumberOrString::Number(1),
+                request: ClientRequest::InitializeRequest(Request {
+                    method: InitializeResultMethod,
+                    params: InitializeRequestParam {
+                        protocol_version: protocol_version_2025_06_18(),
+                        capabilities: ClientCapabilities::default(),
+                        client_info: Implementation {
+                            name: "foo".to_string(),
+                            version: "bar".to_string(),
+                        },
                     },
-                },
-                extensions: Extensions::new(),
-            }),
-        })) {
+                    extensions: Extensions::new(),
+                }),
+            },
+        )) {
             JsonRpcMessage::Response(res) => {
                 assert_eq!(res.jsonrpc, JsonRpcVersion2_0 {});
                 assert_eq!(res.id, NumberOrString::Number(1));
@@ -478,22 +496,25 @@ mod tests {
             _ => panic!("Expected JsonRpcMessage::Response"),
         }
 
-        match block_on(S {}.handle_request(JsonRpcRequest {
-            jsonrpc: JsonRpcVersion2_0,
-            id: NumberOrString::Number(1),
-            request: ClientRequest::InitializeRequest(Request {
-                method: InitializeResultMethod,
-                params: InitializeRequestParam {
-                    protocol_version: from_str::<ProtocolVersion>("\"1970-01-01\"").unwrap(),
-                    capabilities: ClientCapabilities::default(),
-                    client_info: Implementation {
-                        name: "foo".to_string(),
-                        version: "bar".to_string(),
+        match block_on(S {}.handle_request(
+            None,
+            JsonRpcRequest {
+                jsonrpc: JsonRpcVersion2_0,
+                id: NumberOrString::Number(1),
+                request: ClientRequest::InitializeRequest(Request {
+                    method: InitializeResultMethod,
+                    params: InitializeRequestParam {
+                        protocol_version: from_str::<ProtocolVersion>("\"1970-01-01\"").unwrap(),
+                        capabilities: ClientCapabilities::default(),
+                        client_info: Implementation {
+                            name: "foo".to_string(),
+                            version: "bar".to_string(),
+                        },
                     },
-                },
-                extensions: Extensions::new(),
-            }),
-        })) {
+                    extensions: Extensions::new(),
+                }),
+            },
+        )) {
             JsonRpcMessage::Response(res) => {
                 assert_eq!(res.jsonrpc, JsonRpcVersion2_0 {});
                 assert_eq!(res.id, NumberOrString::Number(1));
@@ -516,14 +537,17 @@ mod tests {
             _ => panic!("Expected JsonRpcMessage::Response"),
         }
 
-        match block_on(S {}.handle_request(JsonRpcRequest {
-            jsonrpc: JsonRpcVersion2_0,
-            id: NumberOrString::Number(1),
-            request: ClientRequest::PingRequest(RequestNoParam {
-                method: PingRequestMethod,
-                extensions: Extensions::new(),
-            }),
-        })) {
+        match block_on(S {}.handle_request(
+            None,
+            JsonRpcRequest {
+                jsonrpc: JsonRpcVersion2_0,
+                id: NumberOrString::Number(1),
+                request: ClientRequest::PingRequest(RequestNoParam {
+                    method: PingRequestMethod,
+                    extensions: Extensions::new(),
+                }),
+            },
+        )) {
             JsonRpcMessage::Response(res) => {
                 assert_eq!(res.jsonrpc, JsonRpcVersion2_0 {});
                 assert_eq!(res.id, NumberOrString::Number(1));
@@ -538,18 +562,21 @@ mod tests {
             _ => panic!("Expected JsonRpcMessage::Response"),
         }
 
-        match block_on(S {}.handle_request(JsonRpcRequest {
-            jsonrpc: JsonRpcVersion2_0,
-            id: NumberOrString::Number(1),
-            request: ClientRequest::CallToolRequest(Request {
-                method: CallToolRequestMethod,
-                params: CallToolRequestParam {
-                    name: Cow::from("foo"),
-                    arguments: None,
-                },
-                extensions: Extensions::new(),
-            }),
-        })) {
+        match block_on(S {}.handle_request(
+            None,
+            JsonRpcRequest {
+                jsonrpc: JsonRpcVersion2_0,
+                id: NumberOrString::Number(1),
+                request: ClientRequest::CallToolRequest(Request {
+                    method: CallToolRequestMethod,
+                    params: CallToolRequestParam {
+                        name: Cow::from("foo"),
+                        arguments: None,
+                    },
+                    extensions: Extensions::new(),
+                }),
+            },
+        )) {
             JsonRpcMessage::Error(error) => {
                 assert_eq!(error.jsonrpc, JsonRpcVersion2_0 {});
                 assert_eq!(error.id, NumberOrString::Number(1));
@@ -557,15 +584,18 @@ mod tests {
             _ => panic!("Expected JsonRpcMessage::Error"),
         }
 
-        match block_on(S {}.handle_request(JsonRpcRequest {
-            jsonrpc: JsonRpcVersion2_0,
-            id: NumberOrString::Number(1),
-            request: ClientRequest::ListToolsRequest(RequestOptionalParam {
-                method: ListToolsRequestMethod,
-                params: None,
-                extensions: Extensions::new(),
-            }),
-        })) {
+        match block_on(S {}.handle_request(
+            None,
+            JsonRpcRequest {
+                jsonrpc: JsonRpcVersion2_0,
+                id: NumberOrString::Number(1),
+                request: ClientRequest::ListToolsRequest(RequestOptionalParam {
+                    method: ListToolsRequestMethod,
+                    params: None,
+                    extensions: Extensions::new(),
+                }),
+            },
+        )) {
             JsonRpcMessage::Response(res) => {
                 assert_eq!(res.jsonrpc, JsonRpcVersion2_0 {});
                 assert_eq!(res.id, NumberOrString::Number(1));
@@ -573,15 +603,18 @@ mod tests {
             _ => panic!("Expected JsonRpcMessage::Response"),
         }
 
-        match block_on(S {}.handle_request(JsonRpcRequest {
-            jsonrpc: JsonRpcVersion2_0,
-            id: NumberOrString::Number(1),
-            request: ClientRequest::ListResourcesRequest(RequestOptionalParam {
-                method: ListResourcesRequestMethod,
-                params: None,
-                extensions: Extensions::new(),
-            }),
-        })) {
+        match block_on(S {}.handle_request(
+            None,
+            JsonRpcRequest {
+                jsonrpc: JsonRpcVersion2_0,
+                id: NumberOrString::Number(1),
+                request: ClientRequest::ListResourcesRequest(RequestOptionalParam {
+                    method: ListResourcesRequestMethod,
+                    params: None,
+                    extensions: Extensions::new(),
+                }),
+            },
+        )) {
             JsonRpcMessage::Error(error) => {
                 assert_eq!(error.jsonrpc, JsonRpcVersion2_0 {});
                 assert_eq!(error.id, NumberOrString::Number(1));
@@ -602,7 +635,7 @@ mod tests {
         impl Handler for A {}
 
         assert_eq!(
-            block_on(A {}.raw_handle(&HttpRequest::builder().with_url("/foo").build())),
+            block_on(A {}.raw_handle(None, &HttpRequest::builder().with_url("/foo").build())),
             HttpResponse::builder()
                 .with_status_code(StatusCode::from_u16(404).unwrap())
                 .with_headers(vec![("Content-Type".to_string(), "text/plain".to_string())])
@@ -611,7 +644,10 @@ mod tests {
         );
 
         assert_eq!(
-            block_on(A {}.raw_handle(&HttpRequest::builder().with_method(Method::GET).build())),
+            block_on(A {}.raw_handle(
+                None,
+                &HttpRequest::builder().with_method(Method::GET).build()
+            )),
             HttpResponse::builder()
                 .with_status_code(StatusCode::from_u16(404).unwrap())
                 .with_headers(vec![("Content-Type".to_string(), "text/plain".to_string())])
@@ -620,7 +656,7 @@ mod tests {
         );
 
         assert_eq!(
-            block_on(A{}.raw_handle(&HttpRequest::builder().with_method(Method::POST).with_url("/foo/mcp").with_body(b"{").build())),
+            block_on(A{}.raw_handle(None, &HttpRequest::builder().with_method(Method::POST).with_url("/foo/mcp").with_body(b"{").build())),
             HttpResponse::builder()
                 .with_status_code(StatusCode::from_u16(200).unwrap())
                 .with_headers(vec![("Content-Type".to_string(), "application/json".to_string())])
@@ -628,7 +664,7 @@ mod tests {
                 .build());
 
         assert_eq!(
-            block_on(A{}.raw_handle(&HttpRequest::builder().with_method(Method::POST).with_url("/mcp").with_body(b"12").build())),
+            block_on(A{}.raw_handle(None, &HttpRequest::builder().with_method(Method::POST).with_url("/mcp").with_body(b"12").build())),
             HttpResponse::builder()
                 .with_status_code(StatusCode::from_u16(200).unwrap())
                 .with_headers(vec![("Content-Type".to_string(), "application/json".to_string())])
@@ -636,7 +672,7 @@ mod tests {
                 .build());
 
         assert_eq!(
-            block_on(A{}.raw_handle(&HttpRequest::builder().with_method(Method::POST).with_url("/mcp").with_body(br#""foo""#).build())),
+            block_on(A{}.raw_handle(None, &HttpRequest::builder().with_method(Method::POST).with_url("/mcp").with_body(br#""foo""#).build())),
             HttpResponse::builder()
                 .with_status_code(StatusCode::from_u16(200).unwrap())
                 .with_headers(vec![("Content-Type".to_string(), "application/json".to_string())])
@@ -644,7 +680,7 @@ mod tests {
                 .build());
 
         assert_eq!(
-            block_on(A{}.raw_handle(&HttpRequest::builder().with_method(Method::POST).with_url("/mcp").with_body(br#"null"#).build())),
+            block_on(A{}.raw_handle(None, &HttpRequest::builder().with_method(Method::POST).with_url("/mcp").with_body(br#"null"#).build())),
             HttpResponse::builder()
                 .with_status_code(StatusCode::from_u16(200).unwrap())
                 .with_headers(vec![("Content-Type".to_string(), "application/json".to_string())])
@@ -652,7 +688,7 @@ mod tests {
                 .build());
 
         assert_eq!(
-            block_on(A{}.raw_handle(&HttpRequest::builder().with_method(Method::POST).with_url("/mcp").with_body(br#"true"#).build())),
+            block_on(A{}.raw_handle(None, &HttpRequest::builder().with_method(Method::POST).with_url("/mcp").with_body(br#"true"#).build())),
             HttpResponse::builder()
                 .with_status_code(StatusCode::from_u16(200).unwrap())
                 .with_headers(vec![("Content-Type".to_string(), "application/json".to_string())])
@@ -661,7 +697,7 @@ mod tests {
 
         assert_eq!(
             block_on(A{}
-                .raw_handle(&HttpRequest::builder().with_method(Method::POST).with_url("/mcp")
+                .raw_handle(None, &HttpRequest::builder().with_method(Method::POST).with_url("/mcp")
                 .with_body(br#"
                     {
                     "jsonrpc": "2.0",
@@ -696,6 +732,7 @@ mod tests {
         assert_eq!(
             block_on(
                 A {}.raw_handle(
+                    None,
                     &HttpRequest::builder()
                         .with_method(Method::POST)
                         .with_url("/mcp")
@@ -718,6 +755,7 @@ mod tests {
         assert_eq!(
             block_on(
                 A {}.raw_handle(
+                    None,
                     &HttpRequest::builder()
                         .with_method(Method::POST)
                         .with_url("/mcp")
@@ -746,6 +784,7 @@ mod tests {
         assert_eq!(
             block_on(
                 A {}.raw_handle(
+                    None,
                     &HttpRequest::builder()
                         .with_method(Method::POST)
                         .with_url("/mcp")
@@ -779,6 +818,7 @@ mod tests {
         assert_eq!(
             block_on(
                 A {}.raw_handle(
+                    None,
                     &HttpRequest::builder()
                         .with_method(Method::POST)
                         .with_headers(vec![(
@@ -815,8 +855,7 @@ mod tests {
 
         assert_eq!(
             block_on(
-                A {}.raw_handle(
-                    &HttpRequest::builder()
+                A {}.raw_handle(None, &HttpRequest::builder()
                         .with_method(Method::POST)
                         .with_headers(vec![("MCP-Protocol-Version".to_string(), "2025-06-18".to_string())])
                         .with_url("/mcp")
@@ -849,8 +888,7 @@ mod tests {
 
         assert_eq!(
             block_on(
-                A {}.raw_handle(
-                    &HttpRequest::builder()
+                A {}.raw_handle(None, &HttpRequest::builder()
                         .with_method(Method::POST)
                         .with_url("/mcp")
                         .with_body(
