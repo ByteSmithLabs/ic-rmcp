@@ -7,6 +7,7 @@ pub struct OAuthConfig {
     pub metadata_url: String,
     pub resource: String,
     pub issuer_configs: IssuerConfig,
+    pub scopes_supported: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
