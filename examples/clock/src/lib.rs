@@ -101,6 +101,7 @@ async fn http_request_update(req: HttpRequest<'_>) -> HttpResponse<'_> {
                     authorization_server: args.authorization_server.clone(),
                     audience: args.audience.clone(),
                 },
+                scopes_supported: vec![],
             }),
         )
         .await

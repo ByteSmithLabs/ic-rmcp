@@ -53,6 +53,7 @@ impl<S: Service> Server for S {
             struct Metadata<'a> {
                 resource: &'a str,
                 authorization_servers: &'a [&'a str],
+                scopes_supported: &'a [&'a str],
             }
 
             return response(Metadata {
@@ -60,6 +61,12 @@ impl<S: Service> Server for S {
                 authorization_servers: cfg
                     .issuer_configs
                     .authorization_server
+                    .iter()
+                    .map(|s| s.as_str())
+                    .collect::<Vec<&str>>()
+                    .as_slice(),
+                scopes_supported: cfg
+                    .scopes_supported
                     .iter()
                     .map(|s| s.as_str())
                     .collect::<Vec<&str>>()
@@ -975,6 +982,7 @@ mod tests {
                         metadata_url: "https://my-server.com/.well-known/oauth-protected-resource"
                             .to_string(),
                         resource: "https://my-server.com".to_string(),
+                        scopes_supported: vec![],
                         issuer_configs: IssuerConfig {
                             authorization_server: vec!["https://authorization-server.com".to_string()],
                             ..Default::default()
@@ -985,7 +993,7 @@ mod tests {
             HttpResponse::builder()
                 .with_status_code(StatusCode::from_u16(200).unwrap())
                 .with_headers(vec![("Content-Type".to_string(), "application/json".to_string())])
-                .with_body(br#"{"resource":"https://my-server.com","authorization_servers":["https://authorization-server.com"]}"#)
+                .with_body(br#"{"resource":"https://my-server.com","authorization_servers":["https://authorization-server.com"],"scopes_supported":[]}"#)
                 .build()
         );
 
