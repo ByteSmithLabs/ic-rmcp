@@ -1,4 +1,6 @@
-use ic_cdk::management_canister::{http_request, HttpMethod, HttpRequestArgs};
+use ic_cdk::management_canister::{
+    http_request_with_closure, HttpMethod, HttpRequestArgs, HttpRequestResult,
+};
 use jsonwebtoken::jwk::JwkSet;
 use serde_json::from_slice;
 use std::cell::RefCell;
@@ -12,14 +14,21 @@ pub async fn fetch_jwks(jwks_url: &str) -> Result<JwkSet, String> {
         return Ok(set);
     }
 
-    let body = http_request(&HttpRequestArgs {
-        url: jwks_url.to_string(),
-        max_response_bytes: Some(5_000),
-        method: HttpMethod::GET,
-        headers: vec![],
-        body: None,
-        transform: None,
-    })
+    let body = http_request_with_closure(
+        &HttpRequestArgs {
+            url: jwks_url.to_string(),
+            max_response_bytes: Some(5_000),
+            method: HttpMethod::GET,
+            headers: vec![],
+            body: None,
+            transform: None,
+        },
+        |raw| HttpRequestResult {
+            status: raw.status.clone(),
+            body: raw.body.clone(),
+            headers: vec![],
+        },
+    )
     .await
     .map_err(|err| err.to_string())?
     .body;
