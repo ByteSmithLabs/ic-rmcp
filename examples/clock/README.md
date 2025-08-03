@@ -32,7 +32,7 @@ sequenceDiagram
     Note over C,M: MCP communication continues with valid token
 ```
 
-### Quickstart:
+### Quickstart
 Create a file named `.vscode/mcp.json` inside any VS Code project directory with this content: 
 ```json
 {
@@ -43,6 +43,7 @@ Create a file named `.vscode/mcp.json` inside any VS Code project directory with
     }
 }
 ```
+Follow the steps VSCode guides you through to start using `Clock` MCP server in chat.
 ### Deployment guide
 #### 1. Register your MCP server as resource server 
 
@@ -74,3 +75,6 @@ dfx deploy clock --ic --argument '(record {
 ```
 #### 3. Test the flow
 You're done. Pick any compatible MCP client (VS Code Copilot, Anthropic MCP Inspector,...) and see if you can get the tool result alongside with your logged in identity. 
+
+### Multi-user server
+`Handler` trait's functions let you access to the authorized user through field `subject`.
