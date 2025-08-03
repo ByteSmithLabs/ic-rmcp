@@ -78,8 +78,7 @@ impl Handler for Clock {
                 Content::text(format!(
                     "You're logged in as {}, and the current time is: {}",
                     context.subject.unwrap(),
-                    DateTime::from_timestamp_nanos(time() as i64)
-                        .to_rfc3339()
+                    DateTime::from_timestamp_nanos(time() as i64).to_rfc3339()
                 ))
                 .into_contents(),
             )),
