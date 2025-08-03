@@ -1,7 +1,7 @@
 # ic-rmcp
 
 [![Internet Computer compatible](https://img.shields.io/badge/IC-compatible-blue.svg)](https://internetcomputer.org)
-[![MCP Version](https://img.shields.io/badge/MCP%20Spec-2025--03--26-orange.svg)](https://modelcontextprotocol.io)
+[![MCP Version](https://img.shields.io/badge/MCP%20Spec-2025--03--26;%202025--06--18-orange.svg)](https://modelcontextprotocol.io)
 
 A lightweight Rust SDK for implementing **Model Context Protocol (MCP)** servers on the **Internet Computer**.
 
