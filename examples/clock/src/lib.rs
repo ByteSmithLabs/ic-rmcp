@@ -70,16 +70,17 @@ impl Handler for Clock {
 
     async fn call_tool(
         &self,
-        _: Context,
+        context: Context,
         requests: CallToolRequestParam,
     ) -> Result<CallToolResult, Error> {
         match requests.name.as_ref() {
             "tell_time" => Ok(CallToolResult::success(
-                Content::text(
+                Content::text(format!(
+                    "You're logged in as {}, and the current time is: {}",
+                    context.subject.unwrap(),
                     DateTime::from_timestamp_nanos(time() as i64)
                         .to_rfc3339()
-                        .to_string(),
-                )
+                ))
                 .into_contents(),
             )),
             _ => Err(Error::invalid_params("not found tool", None)),
