@@ -66,10 +66,10 @@ Most of the time, figuring out which value for each field could be done easily b
 
 dfx deploy clock --ic --argument '(record {
  metadata_url = "https://5wbji-niaaa-aaaab-aaelq-cai.icp0.io/.well-known/oauth-protected-resource";
- resource = "https://5wbji-niaaa-aaaab-aaelq-cai.icp0.io/";
+ resource = "https://5wbji-niaaa-aaaab-aaelq-cai.icp0.io/mcp";
  issuer = "https://bfggx-7yaaa-aaaai-q32gq-cai.icp0.io";
  jwks_url = "https://bfggx-7yaaa-aaaai-q32gq-cai.icp0.io/.well-known/jwks.json";
- audience = "https://5wbji-niaaa-aaaab-aaelq-cai.icp0.io";
+ audience = "https://5wbji-niaaa-aaaab-aaelq-cai.icp0.io/mcp";
  authorization_server = vec { "https://bfggx-7yaaa-aaaai-q32gq-cai.icp0.io" };
 })'
 ```
