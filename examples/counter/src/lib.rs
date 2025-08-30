@@ -21,6 +21,13 @@ fn http_request(_: HttpRequest) -> HttpResponse {
         .build()
 }
 
+// Authentication check function
+fn auth_check(headers: &[(String, String)]) -> bool {
+    headers
+        .iter()
+        .any(|(k, v)| k == "x-api-key" && *v == API_KEY.with_borrow(|k| k.clone()))
+}
+
 struct Counter;
 
 impl Handler for Counter {
@@ -100,13 +107,7 @@ impl Handler for Counter {
 
 #[update]
 async fn http_request_update(req: HttpRequest<'_>) -> HttpResponse<'_> {
-    Counter {}
-        .handle(&req, |headers| -> bool {
-            headers
-                .iter()
-                .any(|(k, v)| k == "x-api-key" && *v == API_KEY.with_borrow(|k| k.clone()))
-        })
-        .await
+    Counter {}.handle(&req, auth_check).await
 }
 
 ic_cdk::export_candid!();
