@@ -24,7 +24,7 @@ impl<S: Service> Server for S {
         &self,
         req: &HttpRequest<'_>,
         auth: impl Fn(&[HeaderField]) -> bool,
-    ) -> HttpResponse {
+    ) -> HttpResponse<'_> {
         match auth(req.headers()) {
             true => self.raw_handle(None, req).await,
             false => HttpResponse::builder()
@@ -35,7 +35,7 @@ impl<S: Service> Server for S {
         }
     }
 
-    async fn handle_with_oauth(&self, req: &HttpRequest<'_>, cfg: OAuthConfig) -> HttpResponse {
+    async fn handle_with_oauth(&self, req: &HttpRequest<'_>, cfg: OAuthConfig) -> HttpResponse<'_> {
         let metadata_path = match Url::parse(&cfg.metadata_url) {
             Ok(url) => url.path().to_string(),
             Err(err) => {
@@ -126,7 +126,7 @@ impl<S: Service> Server for S {
 }
 
 trait Service: Handler {
-    async fn raw_handle(&self, subject: Option<String>, req: &HttpRequest<'_>) -> HttpResponse {
+    async fn raw_handle(&self, subject: Option<String>, req: &HttpRequest<'_>) -> HttpResponse<'_> {
         if req.method() != "POST" || !req.url().ends_with("/mcp") {
             return HttpResponse::builder()
                 .with_status_code(StatusCode::from_u16(404).unwrap())

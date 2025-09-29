@@ -7,10 +7,10 @@ pub trait Server {
         &self,
         req: &HttpRequest,
         auth: impl Fn(&[HeaderField]) -> bool,
-    ) -> impl Future<Output = HttpResponse>;
+    ) -> impl Future<Output = HttpResponse<'_>>;
     fn handle_with_oauth(
         &self,
         req: &HttpRequest,
         cfg: OAuthConfig,
-    ) -> impl Future<Output = HttpResponse>;
+    ) -> impl Future<Output = HttpResponse<'_>>;
 }
