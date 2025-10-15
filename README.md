@@ -26,7 +26,7 @@ This SDK is specifically designed for the IC canister runtime, using the Streama
 
 ```toml
 [dependencies]
-ic-rmcp = { git = "https://github.com/ByteSmithLabs/ic-rmcp", tag = "v0.2.0" }
+ic-rmcp = { git = "https://github.com/ByteSmithLabs/ic-rmcp", tag = "v0.3.0" }
 
 ```
 
