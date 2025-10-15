@@ -7,9 +7,10 @@ use ic_rmcp::{model::*, schema_for_type, Context, Error, Handler, Server};
 use serde::{Deserialize, Serialize};
 use serde_json::from_slice;
 use std::cell::RefCell;
+use candid::CandidType;
 
 thread_local! {
-    static API_KEY : RefCell<String> = const {RefCell::new(String::new())} ;
+    static ARGS : RefCell<InitArgs> = RefCell::default();
 }
 
 #[derive(Serialize, Deserialize)]
@@ -53,9 +54,15 @@ struct WeatherRequest {
     longitude: Option<f64>,
 }
 
+#[derive(Deserialize, CandidType, Default)]
+struct InitArgs {
+    api_key: String,
+    replicated: bool,
+}
+
 #[init]
-fn init(api_key: String) {
-    API_KEY.with_borrow_mut(|key| *key = api_key)
+fn init(config: InitArgs) {
+    ARGS.with_borrow_mut(|args| *args = config);
 }
 
 async fn fetch_weather(latitude: f64, longitude: f64) -> Result<WeatherResponse, String> {
@@ -64,8 +71,11 @@ async fn fetch_weather(latitude: f64, longitude: f64) -> Result<WeatherResponse,
         latitude, longitude
     );
 
+    let replicated = ARGS.with_borrow(|args| args.replicated);
+
     let body = http_request_with_closure(
         &HttpRequestArgs {
+            is_replicated: Some(replicated),
             url,
             max_response_bytes: Some(10_000),
             method: HttpMethod::GET,
@@ -205,7 +215,7 @@ async fn http_request_update(req: HttpRequest<'_>) -> HttpResponse<'_> {
         .handle(&req, |headers| -> bool {
             headers
                 .iter()
-                .any(|(k, v)| k == "x-api-key" && *v == API_KEY.with_borrow(|k| k.clone()))
+                .any(|(k, v)| k == "x-api-key" && *v == ARGS.with_borrow(|args| args.api_key.clone()))
         })
         .await
 }

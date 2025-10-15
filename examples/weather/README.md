@@ -9,6 +9,7 @@ A Model Context Protocol (MCP) server running on the Internet Computer that prov
 - Supports custom latitude/longitude coordinates
 - Defaults to Berlin, Germany when no coordinates provided
 - Returns detailed weather information including temperature, wind, and conditions
+- Configurable HTTP request replication
 
 ## Weather Tool
 
@@ -46,10 +47,10 @@ cargo check --target wasm32-unknown-unknown
 ### Deploy
 ```bash
 dfx start --background
-dfx deploy weather --argument '("your-api-key-here")'
+dfx deploy weather --argument '(record { api_key = "your-api-key-here"; replicated = true })'
 ```
 
-Note: The API key parameter is maintained for compatibility with the authentication system, though the Open-Meteo API doesn't require authentication.
+Note: The API key parameter is maintained for compatibility with the authentication system, though the Open-Meteo API doesn't require authentication. The `replicated` field controls whether HTTP requests are replicated across nodes (set to `true` for consistency across calls, `false` for potentially faster but non-deterministic responses).
 
 ## API Endpoint Used
 

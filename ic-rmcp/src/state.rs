@@ -16,6 +16,7 @@ pub async fn fetch_jwks(jwks_url: &str) -> Result<JwkSet, String> {
 
     let body = http_request_with_closure(
         &HttpRequestArgs {
+            is_replicated: Some(true),
             url: jwks_url.to_string(),
             max_response_bytes: Some(5_000),
             method: HttpMethod::GET,

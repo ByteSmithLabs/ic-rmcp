@@ -11,7 +11,11 @@ type HttpResponse = record {
   upgrade : opt bool;
   status_code : nat16;
 };
-service : (text) -> {
+type InitArgs = record {
+  api_key : text;
+  replicated : bool;
+};
+service : (InitArgs) -> {
   http_request : (HttpRequest) -> (HttpResponse) query;
   http_request_update : (HttpRequest) -> (HttpResponse);
 }
