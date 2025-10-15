@@ -1,0 +1,17 @@
+{
+  "canisters": {
+    "weather": {
+      "candid": "weather.did",
+      "package": "weather",
+      "type": "rust"
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}
