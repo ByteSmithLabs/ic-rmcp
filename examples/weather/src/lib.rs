@@ -1,7 +1,7 @@
-use ic_cdk::{init, query, update};
 use ic_cdk::management_canister::{
     http_request_with_closure, HttpMethod, HttpRequestArgs, HttpRequestResult,
 };
+use ic_cdk::{init, query, update};
 use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
 use ic_rmcp::{model::*, schema_for_type, Context, Error, Handler, Server};
 use serde::{Deserialize, Serialize};
@@ -83,7 +83,8 @@ async fn fetch_weather(latitude: f64, longitude: f64) -> Result<WeatherResponse,
     .map_err(|err| format!("HTTP request failed: {}", err))?
     .body;
 
-    from_slice::<WeatherResponse>(&body).map_err(|err| format!("Failed to parse weather data: {}", err))
+    from_slice::<WeatherResponse>(&body)
+        .map_err(|err| format!("Failed to parse weather data: {}", err))
 }
 
 #[query]
@@ -134,8 +135,9 @@ impl Handler for Weather {
         match requests.name.as_ref() {
             "get_current_weather" => {
                 let params: WeatherRequest = if let Some(args) = requests.arguments {
-                    serde_json::from_value(serde_json::Value::Object(args))
-                        .map_err(|_| Error::invalid_params("Invalid weather request parameters", None))?
+                    serde_json::from_value(serde_json::Value::Object(args)).map_err(|_| {
+                        Error::invalid_params("Invalid weather request parameters", None)
+                    })?
                 } else {
                     WeatherRequest {
                         latitude: None,
@@ -158,7 +160,11 @@ impl Handler for Weather {
                             _ => "Unknown",
                         };
 
-                        let is_day = if weather.current_weather.is_day == 1.0 { "Day" } else { "Night" };
+                        let is_day = if weather.current_weather.is_day == 1.0 {
+                            "Day"
+                        } else {
+                            "Night"
+                        };
 
                         let weather_info = format!(
                             "Weather for {}, {} (lat: {}, lon: {})\n\
