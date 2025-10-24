@@ -16,10 +16,15 @@ This SDK is specifically designed for the IC canister runtime, using the Streama
     - ✅ `tools` (`tools/list`, `tools/call`)
 - **Utilities**:
     - ✅ `ping`
+- **Oauth**: Integrate with OAuth providers for secure tool access (see [Clock MCP example](./examples/clock/)).
 
 ## Limitations
 
 - **Stateless**: No maintained sessions. Also no two-way communication between server and client. You should be aware of HTTP response size limitation on IC environment when designing and implementing tools.
+- Your api key can seen by node in subnet
+- Limited by the request/received size - 2MB
+- HTTP outcall limited with IPv6
+
 ## Usage
 
 ### 1. Add to `Cargo.toml`
@@ -117,7 +122,11 @@ async fn http_request_update(req: HttpRequest<'_>) -> HttpResponse<'_> {
 Access your MCP server after deployment at: `https://<CANISTER_ID>.icp0.io/mcp`
 
 ## Full Canister Example
-See [examples](./examples/).
+- See [examples](./examples/).
+- Other advanced [examples](https://github.com/ByteSmithLabs/mcp-examples) 
+
+### 5. Learning resources
+[ByteSmithLabs YouTube Channel](https://www.youtube.com/@ByteSmithLabs)
 
 ## Related Resources
 
@@ -125,3 +134,4 @@ See [examples](./examples/).
 - **[MCP Schema](https://github.com/modelcontextprotocol/specification/blob/main/schema/2025-03-26/schema.ts)**
 - **[Use MCP servers in VS Code](https://code.visualstudio.com/docs/copilot/chat/mcp-servers)**
 - **[MCP Inspector](https://github.com/modelcontextprotocol/inspector)**
+- **[Prometheus Protocol](https://github.com/prometheus-protocol)**
