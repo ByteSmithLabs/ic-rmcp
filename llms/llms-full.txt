@@ -1,0 +1,624 @@
+<SYSTEM>This is the full developer documentation for ic-rmcp.</SYSTEM>
+
+# Start of ic-rmcp documentation
+
+## Overview
+
+The ic-rmcp SDK is a lightweight Rust library specifically designed for implementing **Model Context Protocol (MCP)** servers on the **Internet Computer**. This SDK enables developers to expose canister functions as MCP tools that AI models can interact with directly.
+
+### Key Features
+- **Protocol Version**: Implements MCP specification versions `2025-03-26` & `2025-06-18`
+- **Target Runtime**: Built exclusively for the Internet Computer (no `tokio` dependency)
+- **Transport**: Supports official **Streamable HTTP** transport
+- **Core Capabilities**: Tools (`tools/list`, `tools/call`) and utilities (`ping`)
+- **Authentication**: Supports both API key and OAuth authentication
+
+### Limitations
+- No maintained sessions or two-way communication
+- API keys are visible to subnet nodes
+- HTTP response size limitations apply
+
+## Essential Dependencies
+
+Add these to your `Cargo.toml`:
+
+```toml
+[package]
+name = "my-mcp-server"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+candid = "0.10"
+ic-cdk = "0.18"
+ic-http-certification = "3.0.3"
+ic-rmcp = { git = "https://github.com/ByteSmithLabs/ic-rmcp", tag = "v0.3.0" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+schemars = { version = "0.8" }
+
+# Optional dependencies
+chrono = "0.4"  # For time operations
+ic-pluto = { git = "https://github.com/ByteSmithLabs/pluto" }  # For advanced routing
+```
+
+## Core Implementation Patterns
+
+### 1. Basic Handler Implementation
+
+Every MCP server must implement the `Handler` trait:
+
+```rust
+use ic_rmcp::{model::*, schema_for_type, Context, Error, Handler, Server};
+use schemars::JsonSchema;
+use serde::Deserialize;
+
+// Define your tool's input schema
+#[derive(JsonSchema, Deserialize)]
+struct ToolRequest {
+    param1: String,
+    param2: Option<i32>,
+}
+
+struct MyMCPServer;
+
+impl Handler for MyMCPServer {
+    fn get_info(&self, _: Context) -> ServerInfo {
+        ServerInfo {
+            capabilities: ServerCapabilities::builder().enable_tools().build(),
+            server_info: Implementation {
+                name: "My MCP Server".to_string(),
+                version: "1.0.0".to_string(),
+            },
+            instructions: Some("Description of what this server does".to_string()),
+            ..Default::default()
+        }
+    }
+
+    async fn list_tools(
+        &self,
+        _: Context,
+        _: Option<PaginatedRequestParam>,
+    ) -> Result<ListToolsResult, Error> {
+        Ok(ListToolsResult {
+            next_cursor: None,
+            tools: vec![
+                Tool::new(
+                    "my_tool",
+                    "Description of what the tool does",
+                    schema_for_type::<ToolRequest>(),
+                ),
+            ],
+        })
+    }
+
+    async fn call_tool(
+        &self,
+        _: Context,
+        requests: CallToolRequestParam,
+    ) -> Result<CallToolResult, Error> {
+        match requests.name.as_ref() {
+            "my_tool" => {
+                // Parse arguments
+                let args: ToolRequest = if let Some(args) = requests.arguments {
+                    serde_json::from_value(serde_json::Value::Object(args))
+                        .map_err(|_| Error::invalid_params("Invalid arguments", None))?
+                } else {
+                    return Err(Error::invalid_params("Missing arguments", None));
+                };
+
+                // Your tool logic here
+                let result = format!("Processed: {}", args.param1);
+                Ok(CallToolResult::success(
+                    Content::text(result).into_contents(),
+                ))
+            }
+            _ => Err(Error::invalid_params("Tool not found", None)),
+        }
+    }
+}
+```
+
+### 2. HTTP Endpoints (Standard IC Pattern)
+
+Use the standard IC HTTP interface:
+
+```rust
+use ic_cdk::{init, query, update};
+use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
+use std::cell::RefCell;
+
+thread_local! {
+    static API_KEY: RefCell<String> = const { RefCell::new(String::new()) };
+}
+
+#[init]
+fn init(api_key: String) {
+    API_KEY.with_borrow_mut(|key| *key = api_key)
+}
+
+#[query]
+fn http_request(_: HttpRequest) -> HttpResponse {
+    HttpResponse::builder()
+        .with_status_code(StatusCode::OK)
+        .with_upgrade(true)
+        .build()
+}
+
+#[update]
+async fn http_request_update(req: HttpRequest<'_>) -> HttpResponse<'_> {
+    MyMCPServer {}
+        .handle(&req, |headers| -> bool {
+            headers.iter().any(|(k, v)| 
+                k == "x-api-key" && *v == API_KEY.with_borrow(|k| k.clone())
+            )
+        })
+        .await
+}
+
+ic_cdk::export_candid!();
+```
+
+## Working Examples
+
+### Example 1: Counter Server (Stateful Operations)
+
+```rust
+use ic_cdk::{init, query, update};
+use ic_http_certification::{HttpRequest, HttpResponse, StatusCode};
+use ic_rmcp::{model::*, schema_for_type, Context, Error, Handler, Server};
+use std::cell::RefCell;
+
+thread_local! {
+    static COUNTER: RefCell<i32> = const { RefCell::new(0) };
+    static API_KEY: RefCell<String> = const { RefCell::new(String::new()) };
+}
+
+#[init]
+fn init(api_key: String) {
+    API_KEY.with_borrow_mut(|key| *key = api_key)
+}
+
+struct Counter;
+
+impl Handler for Counter {
+    fn get_info(&self, _: Context) -> ServerInfo {
+        ServerInfo {
+            capabilities: ServerCapabilities::builder().enable_tools().build(),
+            server_info: Implementation {
+                name: "Counter".to_string(),
+                version: "1.0.0".to_string(),
+            },
+            instructions: Some("Counter tool that can increase, decrease, and get counter values.".to_string()),
+            ..Default::default()
+        }
+    }
+
+    async fn list_tools(&self, _: Context, _: Option<PaginatedRequestParam>) -> Result<ListToolsResult, Error> {
+        Ok(ListToolsResult {
+            next_cursor: None,
+            tools: vec![
+                Tool::new("increase", "Increase counter by 1", schema_for_type::<EmptyObject>()),
+                Tool::new("decrease", "Decrease counter by 1", schema_for_type::<EmptyObject>()),
+                Tool::new("get_value", "Get current counter value", schema_for_type::<EmptyObject>()),
+            ],
+        })
+    }
+
+    async fn call_tool(&self, _: Context, requests: CallToolRequestParam) -> Result<CallToolResult, Error> {
+        match requests.name.as_ref() {
+            "increase" => {
+                COUNTER.with(|counter| {
+                    let mut value = counter.borrow_mut();
+                    *value += 1;
+                });
+                Ok(CallToolResult::success(Content::text("Counter incremented").into_contents()))
+            }
+            "decrease" => {
+                COUNTER.with(|counter| {
+                    let mut value = counter.borrow_mut();
+                    *value -= 1;
+                });
+                Ok(CallToolResult::success(Content::text("Counter decremented").into_contents()))
+            }
+            "get_value" => {
+                let value = COUNTER.with(|counter| *counter.borrow());
+                Ok(CallToolResult::success(Content::text(value.to_string()).into_contents()))
+            }
+            _ => Err(Error::invalid_params("Tool not found", None)),
+        }
+    }
+}
+
+#[query]
+fn http_request(_: HttpRequest) -> HttpResponse {
+    HttpResponse::builder()
+        .with_status_code(StatusCode::OK)
+        .with_upgrade(true)
+        .build()
+}
+
+#[update]
+async fn http_request_update(req: HttpRequest<'_>) -> HttpResponse<'_> {
+    Counter {}
+        .handle(&req, |headers| -> bool {
+            headers.iter().any(|(k, v)| k == "x-api-key" && *v == API_KEY.with_borrow(|k| k.clone()))
+        })
+        .await
+}
+
+ic_cdk::export_candid!();
+```
+
+### Example 2: Calculator Server (Parameter Parsing)
+
+```rust
+use ic_rmcp::{model::*, schema_for_type, Context, Error, Handler};
+use schemars::JsonSchema;
+use serde::Deserialize;
+use serde_json::{from_value, Value};
+
+#[derive(JsonSchema, Deserialize)]
+struct AddRequest {
+    a: f64,
+    b: f64,
+}
+
+pub struct Calculator;
+
+impl Handler for Calculator {
+    fn get_info(&self, _: Context) -> ServerInfo {
+        ServerInfo {
+            capabilities: ServerCapabilities::builder().enable_tools().build(),
+            server_info: Implementation {
+                name: "Calculator".to_string(),
+                version: "1.0.0".to_string(),
+            },
+            instructions: Some("A calculator tool for basic arithmetic operations.".to_string()),
+            ..Default::default()
+        }
+    }
+
+    async fn list_tools(&self, _: Context, _: Option<PaginatedRequestParam>) -> Result<ListToolsResult, Error> {
+        Ok(ListToolsResult {
+            next_cursor: None,
+            tools: vec![
+                Tool::new("add", "Add two numbers", schema_for_type::<AddRequest>()),
+            ],
+        })
+    }
+
+    async fn call_tool(&self, _: Context, requests: CallToolRequestParam) -> Result<CallToolResult, Error> {
+        match requests.name.as_ref() {
+            "add" => match requests.arguments {
+                None => Err(Error::invalid_params("Missing arguments for add tool", None)),
+                Some(data) => match from_value::<AddRequest>(Value::Object(data)) {
+                    Err(_) => Err(Error::invalid_params("Invalid arguments for add tool", None)),
+                    Ok(args) => Ok(CallToolResult::success(
+                        Content::text(format!("{:.2}", args.a + args.b)).into_contents(),
+                    )),
+                },
+            },
+            _ => Err(Error::invalid_params("Tool not found", None)),
+        }
+    }
+}
+```
+
+### Example 3: Weather Server (External HTTP Requests)
+
+```rust
+use ic_cdk::management_canister::{
+    http_request_with_closure, HttpMethod, HttpRequestArgs, HttpRequestResult,
+};
+use ic_rmcp::{model::*, schema_for_type, Context, Error, Handler};
+use serde::{Deserialize, Serialize};
+use serde_json::from_slice;
+
+#[derive(Serialize, Deserialize, schemars::JsonSchema)]
+struct WeatherRequest {
+    latitude: Option<f64>,
+    longitude: Option<f64>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct WeatherResponse {
+    latitude: f64,
+    longitude: f64,
+    current_weather: CurrentWeather,
+    timezone: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct CurrentWeather {
+    temperature: f64,
+    windspeed: f64,
+    weathercode: f64,
+}
+
+async fn fetch_weather(latitude: f64, longitude: f64) -> Result<WeatherResponse, String> {
+    let url = format!(
+        "https://api.open-meteo.com/v1/forecast?latitude={}&longitude={}&current_weather=true",
+        latitude, longitude
+    );
+
+    let body = http_request_with_closure(
+        &HttpRequestArgs {
+            url,
+            max_response_bytes: Some(10_000),
+            method: HttpMethod::GET,
+            headers: vec![],
+            body: None,
+            transform: None,
+        },
+        |raw| HttpRequestResult {
+            status: raw.status.clone(),
+            body: raw.body.clone(),
+            headers: vec![],
+        },
+    )
+    .await
+    .map_err(|err| format!("HTTP request failed: {}", err))?
+    .body;
+
+    from_slice::<WeatherResponse>(&body)
+        .map_err(|err| format!("Failed to parse weather data: {}", err))
+}
+
+struct Weather;
+
+impl Handler for Weather {
+    fn get_info(&self, _: Context) -> ServerInfo {
+        ServerInfo {
+            capabilities: ServerCapabilities::builder().enable_tools().build(),
+            server_info: Implementation {
+                name: "Weather".to_string(),
+                version: "1.0.0".to_string(),
+            },
+            instructions: Some("Weather service using Open-Meteo API. Defaults to Berlin coordinates.".to_string()),
+            ..Default::default()
+        }
+    }
+
+    async fn list_tools(&self, _: Context, _: Option<PaginatedRequestParam>) -> Result<ListToolsResult, Error> {
+        Ok(ListToolsResult {
+            next_cursor: None,
+            tools: vec![
+                Tool::new(
+                    "get_current_weather",
+                    "Get current weather for a location (defaults to Berlin)",
+                    schema_for_type::<WeatherRequest>(),
+                ),
+            ],
+        })
+    }
+
+    async fn call_tool(&self, _: Context, requests: CallToolRequestParam) -> Result<CallToolResult, Error> {
+        match requests.name.as_ref() {
+            "get_current_weather" => {
+                let params: WeatherRequest = if let Some(args) = requests.arguments {
+                    serde_json::from_value(serde_json::Value::Object(args))
+                        .map_err(|_| Error::invalid_params("Invalid weather request parameters", None))?
+                } else {
+                    WeatherRequest { latitude: None, longitude: None }
+                };
+
+                let latitude = params.latitude.unwrap_or(52.52);
+                let longitude = params.longitude.unwrap_or(13.41);
+
+                match fetch_weather(latitude, longitude).await {
+                    Ok(weather) => {
+                        let weather_desc = match weather.current_weather.weathercode as i32 {
+                            0 => "Clear sky",
+                            1..=3 => "Partly cloudy",
+                            45..=48 => "Foggy",
+                            51..=67 => "Rainy",
+                            71..=86 => "Snowy",
+                            95..=99 => "Thunderstorm",
+                            _ => "Unknown",
+                        };
+
+                        let weather_info = format!(
+                            "Weather for lat: {}, lon: {}\nTemperature: {}°C\nWind: {:.1} km/h\nConditions: {}",
+                            weather.latitude,
+                            weather.longitude,
+                            weather.current_weather.temperature,
+                            weather.current_weather.windspeed,
+                            weather_desc
+                        );
+
+                        Ok(CallToolResult::success(Content::text(weather_info).into_contents()))
+                    }
+                    Err(err) => Err(Error::internal_error(err, None)),
+                }
+            }
+            _ => Err(Error::invalid_params("Tool not found", None)),
+        }
+    }
+}
+```
+
+## OAuth Authentication
+
+For authenticated MCP servers, use OAuth:
+
+```rust
+use ic_rmcp::{IssuerConfig, OAuthConfig};
+use candid::CandidType;
+use chrono::DateTime;
+use ic_cdk::api::time;
+
+#[derive(Deserialize, CandidType, Default)]
+struct InitArgs {
+    metadata_url: String,
+    resource: String,
+    issuer: String,
+    jwks_url: String,
+    authorization_server: Vec<String>,
+    audience: String,
+}
+
+thread_local! {
+    static ARGS: RefCell<InitArgs> = RefCell::default();
+}
+
+#[init]
+fn init(config: InitArgs) {
+    ARGS.with_borrow_mut(|args| *args = config);
+}
+
+struct AuthenticatedServer;
+
+impl Handler for AuthenticatedServer {
+    async fn call_tool(&self, context: Context, requests: CallToolRequestParam) -> Result<CallToolResult, Error> {
+        match requests.name.as_ref() {
+            "authenticated_action" => {
+                let user = context.subject.unwrap(); // OAuth user identifier
+                Ok(CallToolResult::success(
+                    Content::text(format!(
+                        "Hello {}, current time is: {}",
+                        user,
+                        DateTime::from_timestamp_nanos(time() as i64).to_rfc3339()
+                    )).into_contents(),
+                ))
+            }
+            _ => Err(Error::invalid_params("Tool not found", None)),
+        }
+    }
+}
+
+#[update]
+async fn http_request_update(req: HttpRequest<'_>) -> HttpResponse<'_> {
+    AuthenticatedServer {}
+        .handle_with_oauth(
+            &req,
+            ARGS.with_borrow(|args| OAuthConfig {
+                metadata_url: args.metadata_url.clone(),
+                resource: args.resource.clone(),
+                issuer_configs: IssuerConfig {
+                    issuer: args.issuer.clone(),
+                    jwks_url: args.jwks_url.clone(),
+                    authorization_server: args.authorization_server.clone(),
+                    audience: args.audience.clone(),
+                },
+                scopes_supported: vec![],
+            }),
+        )
+        .await
+}
+```
+
+## Advanced Routing with ic-pluto
+
+For more complex routing needs:
+
+```rust
+use ic_pluto::{
+    http::{HeaderField, HttpBody, HttpRequest, HttpResponse},
+    router::Router,
+};
+use std::collections::HashMap;
+use serde_json::json;
+
+fn convert_pluto_to_cert(req: HttpRequest) -> ic_http_certification::HttpRequest<'static> {
+    let method = match req.method.as_str() {
+        "GET" => ic_http_certification::Method::GET,
+        "POST" => ic_http_certification::Method::POST,
+        _ => ic_http_certification::Method::POST,
+    };
+
+    let cert_headers: Vec<(String, String)> = req
+        .headers
+        .into_iter()
+        .map(|HeaderField(key, value)| (key, value))
+        .collect();
+
+    ic_http_certification::HttpRequest::builder()
+        .with_method(method)
+        .with_url(req.url)
+        .with_headers(cert_headers)
+        .with_body(req.body)
+        .build()
+}
+
+fn setup_router() -> Router {
+    let mut router = Router::new();
+
+    router.post("/mcp", false, |req: HttpRequest| async move {
+        let cert_req = convert_pluto_to_cert(req);
+        let response = MyServer {}.handle(&cert_req, |headers| {
+            headers.iter().any(|(k, v)| k == "x-api-key" && v == "your-api-key")
+        }).await;
+        
+        Ok(HttpResponse {
+            status_code: response.status_code().as_u16(),
+            headers: response.headers().iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect(),
+            body: HttpBody::Raw(response.body().to_vec()),
+        })
+    });
+
+    router.get("/health", false, |_req: HttpRequest| async move {
+        Ok(HttpResponse {
+            status_code: 200,
+            headers: HashMap::new(),
+            body: json!({"status": "healthy"}).into(),
+        })
+    });
+
+    router
+}
+```
+
+## Deployment Configuration
+
+Create a `dfx.json` file:
+
+```json
+{
+  "canisters": {
+    "my_mcp_server": {
+      "type": "rust",
+      "package": "my_mcp_server"
+    }
+  },
+  "networks": {
+    "local": {
+      "bind": "127.0.0.1:4943",
+      "type": "ephemeral"
+    }
+  }
+}
+```
+
+Deploy your canister:
+```bash
+dfx deploy --network local
+```
+
+Access your MCP server at: `https://<CANISTER_ID>.icp0.io/mcp`
+
+## Best Practices
+
+1. **Always validate input parameters** using proper JSON schema types
+2. **Handle errors gracefully** with descriptive error messages
+3. **Keep response sizes manageable** due to IC HTTP limits
+4. **Use thread-local storage** for canister state management
+5. **Implement proper authentication** for sensitive operations
+6. **Test your tools thoroughly** before deployment
+7. **Document your tools clearly** in the instructions field
+
+## Common Patterns Summary
+
+- **Stateless tools**: Simple calculations, data transformations
+- **Stateful tools**: Counters, configuration management, user preferences  
+- **External API tools**: Weather, news, data fetching
+- **Authentication**: API keys for simple auth, OAuth for complex scenarios
+- **Error handling**: Validate inputs, handle external failures gracefully
+- **Routing**: Use standard IC endpoints or ic-pluto for advanced needs
+
+This comprehensive guide covers all the essential patterns needed to build robust MCP servers on the Internet Computer using the ic-rmcp SDK.
