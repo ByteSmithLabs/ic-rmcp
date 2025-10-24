@@ -7,6 +7,12 @@ A lightweight Rust SDK for implementing **Model Context Protocol (MCP)** servers
 
 This SDK is specifically designed for the IC canister runtime, using the Streamable HTTP transport and focusing on the core `tools` capability. It allows developers to quickly expose canister functions as MCP tools for AI models to interact with.
 
+## Docs for LLMs
+
+We support the llms.txt convention for making documentation available to large language models and the applications that make use of them.
+
+- [llms/llms-full.txt](./llms/llms-full.txt) : complete documentation for SDK
+
 ## Features
 
 - **Protocol Version**: Implements the `2025-03-26` & `2025-06-18` MCP specification versions.
