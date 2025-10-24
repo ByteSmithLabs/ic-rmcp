@@ -16,13 +16,11 @@ This SDK is specifically designed for the IC canister runtime, using the Streama
     - ✅ `tools` (`tools/list`, `tools/call`)
 - **Utilities**:
     - ✅ `ping`
-- **Oauth**: Integrate with OAuth providers for secure tool access (see [Clock MCP example](./examples/clock/)).
 
 ## Limitations
 
 - No maintained sessions. Also no two-way communication between server and client. You should be aware of HTTP response size limitation on IC environment when designing and implementing tools.
-- Your api key can seen by node in subnet
-- HTTP outcall limited with IPv6
+- Your API key can be seen by nodes in subnet
 
 ## Usage
 
