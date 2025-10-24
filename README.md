@@ -20,9 +20,8 @@ This SDK is specifically designed for the IC canister runtime, using the Streama
 
 ## Limitations
 
-- **Stateless**: No maintained sessions. Also no two-way communication between server and client. You should be aware of HTTP response size limitation on IC environment when designing and implementing tools.
+- No maintained sessions. Also no two-way communication between server and client. You should be aware of HTTP response size limitation on IC environment when designing and implementing tools.
 - Your api key can seen by node in subnet
-- Limited by the request/received size - 2MB
 - HTTP outcall limited with IPv6
 
 ## Usage
