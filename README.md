@@ -19,7 +19,9 @@ This SDK is specifically designed for the IC canister runtime, using the Streama
 
 ## Limitations
 
-- **Stateless**: No maintained sessions. Also no two-way communication between server and client. You should be aware of HTTP response size limitation on IC environment when designing and implementing tools.
+- No maintained sessions. Also no two-way communication between server and client. You should be aware of HTTP response size limitation on IC environment when designing and implementing tools.
+- Your API key can be seen by nodes in subnet
+
 ## Usage
 
 ### 1. Add to `Cargo.toml`
@@ -117,7 +119,11 @@ async fn http_request_update(req: HttpRequest<'_>) -> HttpResponse<'_> {
 Access your MCP server after deployment at: `https://<CANISTER_ID>.icp0.io/mcp`
 
 ## Full Canister Example
-See [examples](./examples/).
+- See [examples](./examples/).
+- Other advanced [examples](https://github.com/ByteSmithLabs/mcp-examples) 
+
+### 5. Learning resources
+[ByteSmithLabs YouTube Channel](https://www.youtube.com/@ByteSmithLabs)
 
 ## Related Resources
 
@@ -125,3 +131,4 @@ See [examples](./examples/).
 - **[MCP Schema](https://github.com/modelcontextprotocol/specification/blob/main/schema/2025-03-26/schema.ts)**
 - **[Use MCP servers in VS Code](https://code.visualstudio.com/docs/copilot/chat/mcp-servers)**
 - **[MCP Inspector](https://github.com/modelcontextprotocol/inspector)**
+- **[Prometheus Protocol](https://github.com/prometheus-protocol)**
