@@ -12,6 +12,10 @@ use url::Url;
 pub mod oauth;
 use oauth::{validate_token, OAuthConfig};
 
+/// Request-scoped context passed to handler methods.
+///
+/// When OAuth is enabled via [`Server::handle_with_oauth`](crate::Server::handle_with_oauth),
+/// [`Context::subject`] is populated with the `sub` claim from the validated access token.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Context {
     pub subject: Option<String>,
@@ -297,9 +301,17 @@ fn response<T: Serialize>(data: T) -> HttpResponse<'static> {
     }
 }
 
-/// A handler holds MCP message execution logic.
+/// Define your server's MCP behavior by implementing this trait.
+///
+/// You may override any combination of methods; defaults are provided for convenience.
+/// - [`Handler::get_info`] should describe your server and enabled capabilities
+/// - [`Handler::list_tools`] should return the tools your server exposes
+/// - [`Handler::call_tool`] should execute a requested tool and return its result
 #[allow(unused_variables)]
 pub trait Handler {
+    /// Handle a `tools/call` request.
+    ///
+    /// Default: returns `method_not_found`.
     fn call_tool(
         &self,
         context: Context,
@@ -307,6 +319,9 @@ pub trait Handler {
     ) -> impl Future<Output = Result<CallToolResult, Error>> {
         std::future::ready(Err(Error::method_not_found::<CallToolRequestMethod>()))
     }
+    /// Handle a `tools/list` request.
+    ///
+    /// Default: returns an empty tool list.
     fn list_tools(
         &self,
         context: Context,
@@ -314,6 +329,10 @@ pub trait Handler {
     ) -> impl Future<Output = Result<ListToolsResult, Error>> {
         std::future::ready(Ok(ListToolsResult::default()))
     }
+    /// Provide server metadata and advertised capabilities.
+    ///
+    /// Default: returns [`ServerInfo::default`]. You typically want to set
+    /// `capabilities` (e.g., enable tools) and identify your implementation.
     fn get_info(&self, context: Context) -> ServerInfo {
         ServerInfo::default()
     }

@@ -1,31 +1,56 @@
+//! OAuth helpers for protecting MCP servers and advertising resource metadata.
+//!
+//! This module provides:
+//! - [`OAuthConfig`] and [`IssuerConfig`] for configuring your resource server and issuer
+//! - [`validate_token`] to verify `Bearer` access tokens against an issuer JWKS
+//! - [`Claims`] extracted from validated tokens
 use jsonwebtoken::jwk::JwkSet;
 use jsonwebtoken::{decode, decode_header, DecodingKey, Validation};
 use serde::{Deserialize, Serialize};
 
+/// Configuration for enabling OAuth protection and metadata serving.
+///
+/// Used by [`Server::handle_with_oauth`](crate::Server::handle_with_oauth).
 #[derive(Debug, Default, PartialEq)]
 pub struct OAuthConfig {
+    /// Absolute URL of the OAuth Protected Resource metadata endpoint
+    /// (e.g. `https://example.com/.well-known/oauth-protected-resource`).
     pub metadata_url: String,
+    /// The resource identifier (audience) your server represents, typically its origin URL.
     pub resource: String,
+    /// Issuer validation and JWKS configuration.
     pub issuer_configs: IssuerConfig,
+    /// Scopes your resource supports; returned in metadata responses.
     pub scopes_supported: Vec<String>,
 }
 
+/// Subset of standard token claims used by this crate.
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct Claims {
+    /// Subject identifier of the authenticated principal.
     pub sub: String,
     iss: String,
     aud: String,
     exp: u64,
 }
 
+/// Configuration for a token issuer and its JWKS location.
 #[derive(Debug, Default, PartialEq)]
 pub struct IssuerConfig {
+    /// Expected issuer (`iss`) claim.
     pub issuer: String,
+    /// URL to fetch the JSON Web Key Set used to verify tokens.
     pub jwks_url: String,
+    /// Authorization servers that can issue tokens for this resource (used in metadata).
     pub authorization_server: Vec<String>,
+    /// Expected audience (`aud`) claim.
     pub audience: String,
 }
 
+/// Validate a JWT access token using the issuer's JWKS and return parsed claims.
+///
+/// Errors are returned as strings describing the failing step (header decode, key lookup,
+/// decoding key construction, or token validation).
 pub fn validate_token(
     token: &str,
     issuer_configs: &IssuerConfig,
